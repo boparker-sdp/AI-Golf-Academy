@@ -3,10 +3,18 @@ import mediapipe as mp
 import numpy as np
 import tempfile
 
-# Setup MediaPipe
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-mp_drawing = mp.solutions.drawing_utils
+# STABLE IMPORTS: Reaching directly into the python solutions
+from mediapipe.python.solutions import pose as mp_pose
+from mediapipe.python.solutions import drawing_utils as mp_drawing
+
+# INITIALIZE POSE: Use the mp_pose we just imported above
+pose = mp_pose.Pose(
+    min_detection_confidence=0.5, 
+    min_tracking_confidence=0.5,
+    model_complexity=1  # Optimized for cloud speed
+)
+
+# No need for the "mp.solutions" lines anymore!
 
 def analyze_diagnostic_swing(video_path):
     print("🦴 Booting up the X-Ray Diagnostic Lab engine...")
@@ -125,4 +133,5 @@ if __name__ == "__main__":
     print("\n" + "="*50)
     video_file = input("🎬 Drag and drop your video file here: ")
     video_file = video_file.strip('"').strip("'").strip()
+
     analyze_diagnostic_swing(video_file)
