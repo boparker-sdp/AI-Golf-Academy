@@ -25,9 +25,9 @@ def analyze_diagnostic_swing(video_path):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # Create temp file for output
+    # Use MP4 container with the universal mp4v codec
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    # Using 'avc1' for maximum iPhone/Web compatibility
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
 
     address_plane_drawn = False
@@ -80,6 +80,7 @@ def analyze_diagnostic_swing(video_path):
 
     # Ditch the translator, just return the raw WebM file!
     return tfile.name
+
 
 
 
