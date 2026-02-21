@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+
+# Your custom modules
 from ai_coach import vibe_coach
 from swing_analyzer import analyze_diagnostic_swing
 from wrist_tracker import drill_coach
@@ -9,7 +11,6 @@ st.set_page_config(page_title="AI Golf Academy", layout="centered")
 # --- SIDEBAR: Coach Settings ---
 st.sidebar.title("⚙️ Coach Settings")
 
-# Model Roster for 2026
 MODELS = {
     "⚡ Gemini 3 Flash (Fastest)": "gemini-3-flash-preview",
     "🧠 Gemini 3.1 Pro (Elite)": "gemini-3.1-pro-preview",
@@ -36,48 +37,83 @@ if uploaded_file is not None:
     # Save video to a temporary local file
     video_path = "temp_video.mp4"
     with open(video_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
+        f.write(uploaded_file.read())
+        
     st.video(video_path)
-
-    # Ball Result Context
-    st.divider()
-    st.subheader("📊 What was the result?")
+    
+    # --- BALL STRIKING CONTEXT ---
+    st.markdown("### Tell the Coach About the Shot")
     col1, col2, col3 = st.columns(3)
     with col1:
-        curve = st.selectbox("Shape", ["Unknown", "Straight", "Draw/Hook", "Fade/Slice", "Push", "Pull"])
+        shape = st.selectbox("Shape", ["Straight", "Draw", "Fade", "Pull", "Push", "Hook", "Slice", "Unknown"])
     with col2:
-        contact = st.selectbox("Contact", ["Unknown", "Good", "Fat", "Thin/Topped", "Shank"])
+        contact = st.selectbox("Contact", ["Flush", "Thin", "Fat", "Toe", "Heel", "Topped", "Unknown"])
     with col3:
-        direction = st.selectbox("Direction", ["Unknown", "Center", "Left", "Right"])
-
-    # Clean the context for the AI
-    if curve == "Unknown" and contact == "Unknown" and direction == "Unknown":
-        result_context = "Ball flight outcome is unknown."
-    else:
-        result_context = f"Shape: {curve}, Contact: {contact}, Direction: {direction}"
+        direction = st.selectbox("Direction", ["On Target", "Left", "Right", "Short", "Long", "Unknown"])
 
     st.divider()
 
-    # Analysis Buttons
-    col_a, col_b, col_c = st.columns(3)
+    # --- 1. AI VIBE COACH ---
+    if st.button("💬 Ask AI Vibe Coach", use_container_width=True):
+        with st.spinner(f"Consulting {selected_model_display}..."):
+            try:
+                coach_report = vibe_coach(video_path, shape, contact, direction, selected_model_id)
+                st.success("Analysis Complete!")
+                st.markdown(coach_report)
+                
+                # Download Button for the Text Report
+                st.download_button(
+                    label="📄 Save Coach Report",
+                    data=coach_report,
+                    file_name="AI_Golf_Coach_Report.txt",
+                    mime="text/plain",
+                    key="save_report_btn",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Error communicating with AI: {e}")
 
-    with col_a:
-        if st.button("🧠 AI Vibe Coach"):
-            with st.spinner(f"Coaching with {selected_model_display}..."):
-                # SYNCED: Passes model_id from the sidebar
-                report = vibe_coach(video_path, result_context, selected_model_id)
-                st.markdown("### 📝 AI Coaching Report")
-                st.write(report)
+    # --- 2. X-RAY DIAGNOSTIC ---
+    if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
+        with st.spinner("Processing X-Ray Vision..."):
+            try:
+                xray_video_path = analyze_diagnostic_swing(video_path)
+                st.video(xray_video_path)
+                
+                # Download Button for the MP4 Video
+                with open(xray_video_path, "rb") as file:
+                    st.download_button(
+                        label="💾 Save X-Ray Video",
+                        data=file,
+                        file_name="XRay_Swing.mp4",
+                        mime="video/mp4",
+                        key="save_xray_btn",
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error(f"Error processing X-Ray: {e}")
 
-    with col_b:
-        if st.button("🦴 X-Ray Diagnostic"):
-            with st.spinner("Analyzing Stability..."):
-                out = analyze_diagnostic_swing(video_path)
-                if out: st.video(out)
+    # --- 3. WRIST LAB ---
+    if st.button("⌚ Run Wrist Lab", use_container_width=True):
+        with st.spinner("Analyzing Wrist Hinge..."):
+            try:
+                wrist_video_path = drill_coach(video_path)
+                st.video(wrist_video_path)
+                
+                # Download Button for the MP4 Video
+                with open(wrist_video_path, "rb") as file:
+                    st.download_button(
+                        label="💾 Save Wrist Lab Video",
+                        data=file,
+                        file_name="Wrist_Lab.mp4",
+                        mime="video/mp4",
+                        key="save_wrist_btn",
+                        use_container_width=True
+                    )
+            except Exception as e:
+                st.error(f"Error processing Wrist Lab: {e}")
 
-    with col_c:
-        if st.button("⌚ Wrist Lab"):
-            with st.spinner("Analyzing Hinge..."):
-                out = drill_coach(video_path)
-                if out: st.video(out)
+    # --- CLEAR SCREEN FOR NEXT SWING ---
+    st.divider()
+    if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
+        st.rerun()
