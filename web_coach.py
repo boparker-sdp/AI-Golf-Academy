@@ -78,23 +78,27 @@ if uploaded_file is not None:
             except Exception as e:
                 st.error(f"Error communicating with AI: {e}")
 
-    # --- 2. X-RAY DIAGNOSTIC ---
+   # --- 2. X-RAY DIAGNOSTIC ---
     if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
         with st.spinner("Processing X-Ray Vision..."):
             try:
                 xray_video_path = analyze_diagnostic_swing(video_path)
-                st.video(xray_video_path)
                 
-                # Download Button for the MP4 Video
-                with open(xray_video_path, "rb") as file:
-                    st.download_button(
-                        label="💾 Save X-Ray Video",
-                        data=file,
-                        file_name="XRay_Swing.mp4",
-                        mime="video/mp4",
-                        key="save_xray_btn",
-                        use_container_width=True
-                    )
+                # Read the file directly into memory
+                with open(xray_video_path, "rb") as video_file:
+                    video_bytes = video_file.read()
+                
+                # Force the browser to play it natively
+                st.video(video_bytes, format="video/webm")
+                
+                st.download_button(
+                    label="💾 Save X-Ray Video",
+                    data=video_bytes,
+                    file_name="XRay_Swing.webm",
+                    mime="video/webm",
+                    key="save_xray_btn",
+                    use_container_width=True
+                )
             except Exception as e:
                 st.error(f"Error processing X-Ray: {e}")
 
@@ -103,18 +107,22 @@ if uploaded_file is not None:
         with st.spinner("Analyzing Wrist Hinge..."):
             try:
                 wrist_video_path = drill_coach(video_path)
-                st.video(wrist_video_path)
                 
-                # Download Button for the MP4 Video
-                with open(wrist_video_path, "rb") as file:
-                    st.download_button(
-                        label="💾 Save Wrist Lab Video",
-                        data=file,
-                        file_name="Wrist_Lab.mp4",
-                        mime="video/mp4",
-                        key="save_wrist_btn",
-                        use_container_width=True
-                    )
+                # Read the file directly into memory
+                with open(wrist_video_path, "rb") as video_file:
+                    video_bytes = video_file.read()
+                
+                # Force the browser to play it natively
+                st.video(video_bytes, format="video/webm")
+                
+                st.download_button(
+                    label="💾 Save Wrist Lab Video",
+                    data=video_bytes,
+                    file_name="Wrist_Lab.webm",
+                    mime="video/webm",
+                    key="save_wrist_btn",
+                    use_container_width=True
+                )
             except Exception as e:
                 st.error(f"Error processing Wrist Lab: {e}")
 
@@ -122,4 +130,5 @@ if uploaded_file is not None:
     st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
         st.rerun()
+
 
