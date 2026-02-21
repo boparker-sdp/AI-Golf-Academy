@@ -67,8 +67,11 @@ def drill_coach(video_path):
     cap.release()
     out.release()
 
-    # Ditch the translator, just return the raw WebM file!
-    return tfile.name
+    # The Universal Translator: Convert OpenCV's mp4v into a browser-friendly H.264 MP4
+    final_video_path = tfile.name.replace('.mp4', '_h264.mp4')
+    os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
+
+    return final_video_path
 
 
 
