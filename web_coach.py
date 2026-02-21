@@ -57,7 +57,12 @@ if uploaded_file is not None:
     if st.button("💬 Ask AI Vibe Coach", use_container_width=True):
         with st.spinner(f"Consulting {selected_model_display}..."):
             try:
-                coach_report = vibe_coach(video_path, shape, contact, direction, selected_model_id)
+                # BUNDLE THE CONTEXT: Combine the 3 dropdowns into one string
+                result_context = f"Shape: {shape}, Contact: {contact}, Direction: {direction}"
+                
+                # Pass exactly 3 arguments: the video, the bundled context, and the model
+                coach_report = vibe_coach(video_path, result_context, selected_model_id)
+                
                 st.success("Analysis Complete!")
                 st.markdown(coach_report)
                 
@@ -117,3 +122,4 @@ if uploaded_file is not None:
     st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
         st.rerun()
+
