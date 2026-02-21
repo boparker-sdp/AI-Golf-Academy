@@ -29,8 +29,9 @@ def drill_coach(video_path):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
 
+    # Use MP4 container with the universal mp4v codec
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
 
     while cap.isOpened():
@@ -68,6 +69,7 @@ def drill_coach(video_path):
 
     # Ditch the translator, just return the raw WebM file!
     return tfile.name
+
 
 
 
