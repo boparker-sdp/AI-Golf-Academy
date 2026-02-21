@@ -1,3 +1,4 @@
+import os
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -64,5 +65,11 @@ def drill_coach(video_path):
 
     cap.release()
     out.release()
-    return tfile.name
+
+    # The "Universal Translator" - Convert WebM to iPhone-friendly MP4
+    final_mp4 = tfile.name.replace('.webm', '.mp4')
+    os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_mp4}")
+
+    return final_mp4
+
 
