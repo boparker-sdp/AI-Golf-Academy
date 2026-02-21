@@ -78,10 +78,10 @@ def analyze_diagnostic_swing(video_path):
     cap.release()
     out.release()
 
-    # The "Universal Translator" - Convert WebM to iPhone-friendly MP4
-    final_mp4 = tfile.name.replace('.webm', '.mp4')
-    os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_mp4}")
+    # Ditch the translator, just return the raw WebM file!
+    return tfile.name
 
     return final_mp4
+
 
 
