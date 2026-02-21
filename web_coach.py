@@ -89,13 +89,13 @@ if uploaded_file is not None:
                     video_bytes = video_file.read()
                 
                 # Force the browser to play it natively
-                st.video(video_bytes, format="video/webm")
+                st.video(video_bytes, format="video/mp4")
                 
                 st.download_button(
                     label="💾 Save X-Ray Video",
                     data=video_bytes,
-                    file_name="XRay_Swing.webm",
-                    mime="video/webm",
+                    file_name="XRay_Swing.mp4",
+                    mime="video/mp4",
                     key="save_xray_btn",
                     use_container_width=True
                 )
@@ -113,13 +113,13 @@ if uploaded_file is not None:
                     video_bytes = video_file.read()
                 
                 # Force the browser to play it natively
-                st.video(video_bytes, format="video/webm")
+                st.video(video_bytes, format="video/mp4")
                 
                 st.download_button(
                     label="💾 Save Wrist Lab Video",
                     data=video_bytes,
-                    file_name="Wrist_Lab.webm",
-                    mime="video/webm",
+                    file_name="Wrist_Lab.mp4",
+                    mime="video/mp4",
                     key="save_wrist_btn",
                     use_container_width=True
                 )
@@ -130,5 +130,6 @@ if uploaded_file is not None:
     st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
         st.rerun()
+
 
 
