@@ -81,7 +81,7 @@ def analyze_diagnostic_swing(video_path):
     # Ditch the translator, just return the raw WebM file!
     return tfile.name
 
-    return final_mp4
+
 
 
 
