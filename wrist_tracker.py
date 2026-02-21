@@ -3,11 +3,15 @@ import mediapipe as mp
 import numpy as np
 import tempfile
 
-# STABLE CLOUD IMPORTS
-from mediapipe.python.solutions import pose as mp_pose
-from mediapipe.python.solutions import drawing_utils as mp_drawing
+# CLEAN CLOUD IMPORTS
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
 
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5, model_complexity=1)
+pose = mp_pose.Pose(
+    min_detection_confidence=0.5, 
+    min_tracking_confidence=0.5, 
+    model_complexity=1
+)
 
 def calculate_angle(a, b, c):
     a = np.array(a) # Shoulder
@@ -61,3 +65,4 @@ def drill_coach(video_path):
     cap.release()
     out.release()
     return tfile.name
+
