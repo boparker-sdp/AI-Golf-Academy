@@ -4,9 +4,9 @@ import numpy as np
 import tempfile
 import os
 
-# STABLE CLOUD IMPORTS
-from mediapipe.python.solutions import pose as mp_pose
-from mediapipe.python.solutions import drawing_utils as mp_drawing
+# STANDARD IMPORTS (The correct way for Streamlit Cloud)
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
 
 # Initialize Pose Engine
 pose = mp_pose.Pose(
@@ -78,3 +78,4 @@ def analyze_diagnostic_swing(video_path):
     cap.release()
     out.release()
     return tfile.name
+
