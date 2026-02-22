@@ -2,11 +2,17 @@ import streamlit as st
 import os
 
 # Your custom modules
-from ai_coach import vibe_coach
+from ai_coach import vibe_coach, coach_chat
 from swing_analyzer import analyze_diagnostic_swing
 from wrist_tracker import drill_coach
 
 st.set_page_config(page_title="AI Golf Academy", layout="centered")
+
+# --- INITIALIZE APP MEMORY ---
+if "coach_report" not in st.session_state:
+    st.session_state.coach_report = None
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
 
 # --- SIDEBAR: Coach Settings ---
 st.sidebar.title("⚙️ Coach Settings")
@@ -21,7 +27,7 @@ MODELS = {
 selected_model_display = st.sidebar.selectbox(
     "AI Brain Version", 
     options=list(MODELS.keys()),
-    index=0  # Defaults to Gemini 3 Flash
+    index=0
 )
 selected_model_id = MODELS[selected_model_display]
 
@@ -34,17 +40,15 @@ st.title("🏌️‍♂️ AI Golf Academy")
 uploaded_file = st.file_uploader("Upload your swing...", type=["mp4", "mov", "avi", "m4v", "webm"])
 
 if uploaded_file is not None:
-    # Save video to a temporary local file
     video_path = "temp_video.mp4"
     with open(video_path, "wb") as f:
         f.write(uploaded_file.read())
         
     st.video(video_path)
     
-    # --- BALL STRIKING CONTEXT ---
+    # --- BALL STRIKING CONTEXT (V2) ---
     st.markdown("### Tell the Coach About the Shot")
-
-    # NEW: Club Type Selector
+    
     club_type = st.radio("Club Used:", ["Iron / Wedge", "Wood / Driver"], horizontal=True)
     
     col1, col2, col3 = st.columns(3)
@@ -61,50 +65,58 @@ if uploaded_file is not None:
     if st.button("💬 Ask AI Vibe Coach", use_container_width=True):
         with st.spinner(f"Consulting {selected_model_display}..."):
             try:
-                # BUNDLE THE CONTEXT: Combine the 3 dropdowns into one string
-                # Bundle the new club_type into the prompt for Gemini!
                 result_context = f"Club: {club_type}, Shape: {shape}, Contact: {contact}, Direction: {direction}"
-                
-                # Pass exactly 3 arguments: the video, the bundled context, and the model
                 coach_report = vibe_coach(video_path, result_context, selected_model_id)
                 
-                st.success("Analysis Complete!")
-                st.markdown(coach_report)
-                
-                # Download Button for the Text Report
-                st.download_button(
-                    label="📄 Save Coach Report",
-                    data=coach_report,
-                    file_name="AI_Golf_Coach_Report.txt",
-                    mime="text/plain",
-                    key="save_report_btn",
-                    use_container_width=True
-                )
+                # Save to memory to trigger the chat box!
+                st.session_state.coach_report = coach_report
+                st.session_state.chat_messages = []
             except Exception as e:
                 st.error(f"Error communicating with AI: {e}")
 
-   # --- 2. X-RAY DIAGNOSTIC ---
+    # --- CHAT UI (Only shows if a report exists) ---
+    if st.session_state.coach_report:
+        st.success("Analysis Complete!")
+        st.markdown(st.session_state.coach_report)
+        
+        st.download_button(
+            label="📄 Save Coach Report",
+            data=st.session_state.coach_report,
+            file_name="AI_Golf_Coach_Report.txt",
+            mime="text/plain",
+            key="save_report_btn",
+            use_container_width=True
+        )
+        
+        st.divider()
+        st.markdown("### 🗣️ Chat with your Coach")
+        
+        for msg in st.session_state.chat_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+                
+        if user_q := st.chat_input("Ask about your swing (e.g., 'What does laid off mean?'):"):
+            st.session_state.chat_messages.append({"role": "user", "content": user_q})
+            with st.chat_message("user"):
+                st.markdown(user_q)
+                
+            with st.chat_message("assistant"):
+                with st.spinner("Coach is thinking..."):
+                    answer = coach_chat(user_q, st.session_state.coach_report, selected_model_id)
+                    st.markdown(answer)
+                    st.session_state.chat_messages.append({"role": "assistant", "content": answer})
+
+    st.divider()
+
+    # --- 2. X-RAY DIAGNOSTIC ---
     if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
         with st.spinner("Processing X-Ray Vision..."):
             try:
-                # Pass the club_type to the computer vision engine
                 xray_video_path = analyze_diagnostic_swing(video_path, club_type)
-                
-                # Read the file directly into memory
                 with open(xray_video_path, "rb") as video_file:
                     video_bytes = video_file.read()
-                
-                # Force the browser to play it natively
                 st.video(video_bytes, format="video/mp4")
-                
-                st.download_button(
-                    label="💾 Save X-Ray Video",
-                    data=video_bytes,
-                    file_name="XRay_Swing.mp4",
-                    mime="video/mp4",
-                    key="save_xray_btn",
-                    use_container_width=True
-                )
+                st.download_button("💾 Save X-Ray Video", data=video_bytes, file_name="XRay_Swing.mp4", mime="video/mp4", key="save_xray", use_container_width=True)
             except Exception as e:
                 st.error(f"Error processing X-Ray: {e}")
 
@@ -112,32 +124,18 @@ if uploaded_file is not None:
     if st.button("⌚ Run Wrist Lab", use_container_width=True):
         with st.spinner("Analyzing Wrist Hinge..."):
             try:
-                # Pass the club_type to the wrist lab
                 wrist_video_path = drill_coach(video_path, club_type)
-                
-                # Read the file directly into memory
                 with open(wrist_video_path, "rb") as video_file:
                     video_bytes = video_file.read()
-                
-                # Force the browser to play it natively
                 st.video(video_bytes, format="video/mp4")
-                
-                st.download_button(
-                    label="💾 Save Wrist Lab Video",
-                    data=video_bytes,
-                    file_name="Wrist_Lab.mp4",
-                    mime="video/mp4",
-                    key="save_wrist_btn",
-                    use_container_width=True
-                )
+                st.download_button("💾 Save Wrist Lab", data=video_bytes, file_name="Wrist_Lab.mp4", mime="video/mp4", key="save_wrist", use_container_width=True)
             except Exception as e:
                 st.error(f"Error processing Wrist Lab: {e}")
 
-    # --- CLEAR SCREEN FOR NEXT SWING ---
+    # --- CLEAR SCREEN ---
     st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
+        # Wipes the memory so you can start fresh!
+        st.session_state.coach_report = None
+        st.session_state.chat_messages = []
         st.rerun()
-
-
-
-
