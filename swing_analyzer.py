@@ -15,7 +15,7 @@ pose = mp_pose.Pose(
     model_complexity=1
 )
 
-def analyze_diagnostic_swing(video_path):
+def analyze_diagnostic_swing(video_path, club_type):
     print("🦴 Booting up the X-Ray Diagnostic Lab...")
     cap = cv2.VideoCapture(video_path)
     
@@ -83,6 +83,7 @@ def analyze_diagnostic_swing(video_path):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
