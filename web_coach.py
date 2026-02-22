@@ -43,6 +43,10 @@ if uploaded_file is not None:
     
     # --- BALL STRIKING CONTEXT ---
     st.markdown("### Tell the Coach About the Shot")
+
+    # NEW: Club Type Selector
+    club_type = st.radio("Club Used:", ["Iron / Wedge", "Wood / Driver"], horizontal=True)
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         shape = st.selectbox("Shape", ["Straight", "Draw", "Fade", "Pull", "Push", "Hook", "Slice", "Unknown"])
@@ -58,7 +62,8 @@ if uploaded_file is not None:
         with st.spinner(f"Consulting {selected_model_display}..."):
             try:
                 # BUNDLE THE CONTEXT: Combine the 3 dropdowns into one string
-                result_context = f"Shape: {shape}, Contact: {contact}, Direction: {direction}"
+                # Bundle the new club_type into the prompt for Gemini!
+                result_context = f"Club: {club_type}, Shape: {shape}, Contact: {contact}, Direction: {direction}"
                 
                 # Pass exactly 3 arguments: the video, the bundled context, and the model
                 coach_report = vibe_coach(video_path, result_context, selected_model_id)
@@ -82,7 +87,8 @@ if uploaded_file is not None:
     if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
         with st.spinner("Processing X-Ray Vision..."):
             try:
-                xray_video_path = analyze_diagnostic_swing(video_path)
+                # Pass the club_type to the computer vision engine
+                xray_video_path = analyze_diagnostic_swing(video_path, club_type)
                 
                 # Read the file directly into memory
                 with open(xray_video_path, "rb") as video_file:
@@ -106,7 +112,8 @@ if uploaded_file is not None:
     if st.button("⌚ Run Wrist Lab", use_container_width=True):
         with st.spinner("Analyzing Wrist Hinge..."):
             try:
-                wrist_video_path = drill_coach(video_path)
+                # Pass the club_type to the wrist lab
+                wrist_video_path = drill_coach(video_path, club_type)
                 
                 # Read the file directly into memory
                 with open(wrist_video_path, "rb") as video_file:
@@ -130,6 +137,7 @@ if uploaded_file is not None:
     st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
         st.rerun()
+
 
 
 
