@@ -23,7 +23,7 @@ def calculate_angle(a, b, c):
     if angle > 180.0: angle = 360-angle
     return angle
 
-def drill_coach(video_path):
+def drill_coach(video_path, club_type):
     cap = cv2.VideoCapture(video_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -72,6 +72,7 @@ def drill_coach(video_path):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
