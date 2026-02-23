@@ -8,6 +8,20 @@ import tempfile
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
+def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
+    """
+    Calculates if the wrist is above or below the swing plane line.
+    Returns a positive or negative number representing distance from the plane.
+    """
+    x0, y0 = wrist_coords
+    x1, y1 = shoulder_coords
+    x2, y2 = ball_coords
+    
+    # Cross-product math to determine which side of the line the hands are on
+    position = (x0 - x1) * (y2 - y1) - (y0 - y1) * (x2 - x1)
+    
+    return position
+
 # Initialize Pose Engine
 pose = mp_pose.Pose(
     min_detection_confidence=0.5, 
@@ -83,6 +97,7 @@ def analyze_diagnostic_swing(video_path, club_type):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
