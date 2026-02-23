@@ -36,6 +36,7 @@ st.sidebar.info(f"Active Model: {selected_model_display}")
 
 # --- MAIN UI ---
 st.title("🏌️‍♂️ AI Golf Academy")
+st.warning("📱 **iPhone Users:** To ensure video uploads and report downloads work perfectly, please run this app directly in your Safari or Chrome browser, rather than saving it to your Home Screen.")
 
 uploaded_file = st.file_uploader("Upload your swing...", type=["mp4", "mov", "avi", "m4v", "webm"])
 
@@ -140,5 +141,6 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
