@@ -80,14 +80,14 @@ if uploaded_file is not None:
         st.markdown(st.session_state.coach_report)
         
         # Download Button for the Text Report
-                st.download_button(
-                    label="📄 Save Coach Report",
-                    data=st.session_state.coach_report,  # <-- Just add st.session_state. here!
-                    file_name="AI_Golf_Coach_Report.txt",
-                    mime="application/octet-stream",  # <-- This is the magic line that fixes the freeze
-                    key="save_report_btn",
-                    use_container_width=True
-                )
+        st.download_button(
+            label="📄 Save Coach Report",
+            data=st.session_state.coach_report,  # <-- Just add st.session_state. here!
+            file_name="AI_Golf_Coach_Report.txt",
+            mime="application/octet-stream",  # <-- This is the magic line that fixes the freeze
+            key="save_report_btn",
+            use_container_width=True
+        )
         
         st.divider()
         st.markdown("### 🗣️ Chat with your Coach")
@@ -140,4 +140,5 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
