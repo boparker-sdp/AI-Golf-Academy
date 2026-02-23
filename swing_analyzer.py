@@ -29,6 +29,20 @@ pose = mp_pose.Pose(
     model_complexity=1
 )
 
+def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
+    """
+    Calculates if the wrist is above or below the swing plane line.
+    Returns a positive or negative number representing distance from the plane.
+    """
+    x0, y0 = wrist_coords
+    x1, y1 = shoulder_coords
+    x2, y2 = ball_coords
+    
+    # Cross-product math to determine which side of the line the hands are on
+    position = (x0 - x1) * (y2 - y1) - (y0 - y1) * (x2 - x1)
+    
+    return position
+
 def analyze_diagnostic_swing(video_path, club_type):
     print("🦴 Booting up the X-Ray Diagnostic Lab...")
     cap = cv2.VideoCapture(video_path)
@@ -97,6 +111,7 @@ def analyze_diagnostic_swing(video_path, club_type):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
