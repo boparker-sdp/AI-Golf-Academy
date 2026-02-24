@@ -45,7 +45,7 @@ if uploaded_file is not None:
     with open(video_path, "wb") as f:
         f.write(uploaded_file.read())
         
-    st.video(video_path)
+    st.video(video_path, format="video/mp4")    
     
     # --- BALL STRIKING CONTEXT (V2) ---
     st.markdown("### Tell the Coach About the Shot")
@@ -161,6 +161,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
