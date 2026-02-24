@@ -17,19 +17,29 @@ def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
     position = (x0 - x1) * (y2 - y1) - (y0 - y1) * (x2 - x1)
     return position
 
-def analyze_diagnostic_swing(video_path, club_type=None):
+def analyze_diagnostic_swing(video_path, club_type=None): # OR analyze_wrist_action
     cap = cv2.VideoCapture(video_path)
     
-    # 1. Keep these (The dimensions of your video)
+    # 1. Properties are extracted first
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    
-    # 2. REPLACE the tfile and fourcc with these (The Web-Standard Codec)
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    fourcc = cv2.VideoWriter_fourcc(*'avc1') # Changed from 'mp4v' to 'avc1'
-    out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
 
+    # --- THIS IS WHERE THE NEW CODE GOES ---
+    # Setup temporary file for the browser-friendly video
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    
+    # Use 'mp4v' to ensure the Linux server uses a software encoder
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    
+    # This 'out' object is what we use to "save" the red lines to the new file
+    out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
+    # ---------------------------------------
+
+    # 2. Logic variables follow
+    address_plane_line = None
+    ott_detected = False
+    
     # 3. KEEP ALL OF THIS (This is the "brain" of your tracker)
     address_plane_line = None
     max_wrist_height = 1.0 
@@ -91,6 +101,7 @@ def analyze_diagnostic_swing(video_path, club_type=None):
         feedback += "\n\n✅ **ON-PLANE:** Hands stayed inside the plane."
 
     return feedback, tfile.name # Returns a Tuple
+
 
 
 
