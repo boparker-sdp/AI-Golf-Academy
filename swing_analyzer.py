@@ -20,16 +20,17 @@ def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
 def analyze_diagnostic_swing(video_path, club_type=None):
     cap = cv2.VideoCapture(video_path)
     
-# Get video properties for saving
+    # 1. Keep these (The dimensions of your video)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
-    # Setup temporary file for the X-Ray video
+    # 2. REPLACE the tfile and fourcc with these (The Web-Standard Codec)
     tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fourcc = cv2.VideoWriter_fourcc(*'avc1') # Changed from 'mp4v' to 'avc1'
     out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
 
+    # 3. KEEP ALL OF THIS (This is the "brain" of your tracker)
     address_plane_line = None
     max_wrist_height = 1.0 
     is_downswing = False
@@ -90,6 +91,7 @@ def analyze_diagnostic_swing(video_path, club_type=None):
         feedback += "\n\n✅ **ON-PLANE:** Hands stayed inside the plane."
 
     return feedback, tfile.name # Returns a Tuple
+
 
 
 
