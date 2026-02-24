@@ -127,7 +127,7 @@ if uploaded_file is not None:
     if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
         with st.spinner("Processing X-Ray Vision..."):
             try:
-                # Catch both the text and the video path here
+                # We catch BOTH the text and the path here
                 report, xray_video_path = analyze_diagnostic_swing(video_path, club_type)
                 
                 with open(xray_video_path, "rb") as video_file:
@@ -135,7 +135,7 @@ if uploaded_file is not None:
                 
                 st.video(video_bytes, format="video/mp4")
                 
-                # Optional: Display the plane text under the video
+                # This shows the "On-Plane" or "Over-the-Top" message right under the video
                 st.info(report)
                 
                 st.download_button("💾 Save X-Ray Video", data=video_bytes, file_name="XRay_Swing.mp4", mime="video/mp4", key="save_xray", use_container_width=True)
@@ -161,6 +161,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
