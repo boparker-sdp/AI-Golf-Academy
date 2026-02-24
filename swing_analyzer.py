@@ -17,7 +17,7 @@ def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
     position = (x0 - x1) * (y2 - y1) - (y0 - y1) * (x2 - x1)
     return position
 
-def analyze_diagnostic_swing(video_path):
+def analyze_diagnostic_swing(video_path, club_type=None):
     cap = cv2.VideoCapture(video_path)
     
     # Initialize V2 Plane Tracking Variables
@@ -78,6 +78,7 @@ def analyze_diagnostic_swing(video_path):
         feedback += "\n\n✅ **ON-PLANE:** Your hands stayed inside the plane. This allows for an 'Inside-Out' or neutral path."
 
     return feedback
+
 
 
 
