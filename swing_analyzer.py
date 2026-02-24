@@ -1,123 +1,80 @@
-import os
 import cv2
 import mediapipe as mp
 import numpy as np
 import tempfile
 
-# STANDARD IMPORTS (The correct way for Streamlit Cloud)
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
 def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
     """
     Calculates if the wrist is above or below the swing plane line.
-    Returns a positive or negative number representing distance from the plane.
+    (Cross-product math)
     """
     x0, y0 = wrist_coords
     x1, y1 = shoulder_coords
     x2, y2 = ball_coords
-    
-    # Cross-product math to determine which side of the line the hands are on
     position = (x0 - x1) * (y2 - y1) - (y0 - y1) * (x2 - x1)
-    
     return position
 
-# Initialize Pose Engine
-pose = mp_pose.Pose(
-    min_detection_confidence=0.5, 
-    min_tracking_confidence=0.5,
-    model_complexity=1
-)
-
-def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
-    """
-    Calculates if the wrist is above or below the swing plane line.
-    Returns a positive or negative number representing distance from the plane.
-    """
-    x0, y0 = wrist_coords
-    x1, y1 = shoulder_coords
-    x2, y2 = ball_coords
-    
-    # Cross-product math to determine which side of the line the hands are on
-    position = (x0 - x1) * (y2 - y1) - (y0 - y1) * (x2 - x1)
-    
-    return position
-
-def analyze_diagnostic_swing(video_path, club_type):
-    print("🦴 Booting up the X-Ray Diagnostic Lab...")
+def analyze_diagnostic_swing(video_path):
     cap = cv2.VideoCapture(video_path)
     
-    # Get video properties
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    # Initialize V2 Plane Tracking Variables
+    address_plane_line = None
+    max_wrist_height = 1.0 
+    is_downswing = False
+    ott_detected = False
     
-    # Create temp file for output
-    # Use MP4 container with the universal mp4v codec
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
+    with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+        while cap.is_opened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-    address_plane_drawn = False
-    plane_line = None
+            # Convert to RGB for MediaPipe
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(image)
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret: break
+            if results.pose_landmarks:
+                landmarks = results.pose_landmarks.landmark
+                
+                # 1. SETUP: Capture Shoulder-to-Ball Plane at start
+                if address_plane_line is None:
+                    # Using right shoulder and right foot index as proxy for ball position
+                    r_shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, 
+                                  landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
+                    ball_proxy = [landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].x, 
+                                  landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y]
+                    address_plane_line = (r_shoulder, ball_proxy)
 
-        # Convert to RGB for MediaPipe
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(rgb_frame)
+                # 2. TRIGGER: Detect Transition to Downswing
+                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
+                if curr_wrist_y < max_wrist_height:
+                    max_wrist_height = curr_wrist_y
+                elif not is_downswing and curr_wrist_y > (max_wrist_height + 0.05):
+                    is_downswing = True
 
-        if results.pose_landmarks:
-            landmarks = results.pose_landmarks.landmark
-            
-            # --- 1. SETUP SHAFT PLANE (ADDRESS) ---
-            if not address_plane_drawn:
-                # Hip to Hand line
-                hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
-                hand = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
-                plane_line = (
-                    (int(hip.x * width), int(hip.y * height)),
-                    (int(hand.x * width), int(hand.y * height))
-                )
-                address_plane_drawn = True
+                # 3. ANALYSIS: Check if wrist crosses 'Over the Top'
+                if is_downswing:
+                    wrist_pos = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, 
+                                 landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
+                    
+                    plane_score = calculate_swing_plane_position(
+                        wrist_pos, address_plane_line[0], address_plane_line[1]
+                    )
+                    
+                    # If score goes negative, the hand is 'above' the plane
+                    if plane_score < -0.02: 
+                        ott_detected = True
 
-            # --- 2. DRAW STABILITY BOXES ---
-            # Hip Box
-            rh = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
-            cv2.rectangle(frame, (int(rh.x*width)-40, int(rh.y*height)-40), 
-                          (int(rh.x*width)+40, int(rh.y*height)+40), (255, 255, 0), 2)
-            
-            # Head Box
-            nose = landmarks[mp_pose.PoseLandmark.NOSE]
-            cv2.rectangle(frame, (int(nose.x*width)-30, int(nose.y*height)-30), 
-                          (int(nose.x*width)+30, int(nose.y*height)+30), (0, 255, 255), 2)
+        cap.release()
 
-            # --- 3. DRAW PLANE LINE ---
-            if plane_line:
-                cv2.line(frame, plane_line[0], plane_line[1], (0, 165, 255), 3)
+    # Final Feedback Logic
+    feedback = "Swing analysis complete. You focused well on your hinges."
+    if ott_detected:
+        feedback += "\n\n⚠️ **OVER-THE-TOP DETECTED:** Your hands are crossing above the swing plane during the downswing. This usually leads to slices or 'thin' contact."
+    else:
+        feedback += "\n\n✅ **PLANE CONTACT:** Good job keeping the hands inside the plane! That's that 'Inside-Out' path you're looking for."
 
-            # --- 4. DRAW SKELETON ---
-            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-        out.write(frame)
-
-    cap.release()
-    out.release()
-
-    # The Universal Translator: Convert OpenCV's mp4v into a browser-friendly H.264 MP4
-    final_video_path = tfile.name.replace('.mp4', '_h264.mp4')
-    os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
-
-    return final_video_path
-
-
-
-
-
-
-
-
-
-
+    return feedback
