@@ -68,7 +68,9 @@ if uploaded_file is not None:
             try:
                 # A. Run the technical OpenCV Math first
                 # (video_path is the variable where your video is saved)
-                math_feedback = analyze_diagnostic_swing(video_path)
+                # NEW CODE
+                # The "_" is a placeholder that ignores the video path because the AI only needs the text
+                math_feedback, _ = analyze_diagnostic_swing(video_path)
                 
                 # B. Combine your inputs with the math result
                 result_context = (
@@ -152,6 +154,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
