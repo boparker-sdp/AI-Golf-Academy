@@ -20,9 +20,9 @@ def calculate_swing_plane_position(wrist_coords, shoulder_coords, ball_coords):
 def analyze_diagnostic_swing(video_path, club_type=None):
     cap = cv2.VideoCapture(video_path)
     
-    # Get video properties for saving
-    width = int(cap.get(cv2.get(cv2.CAP_PROP_FRAME_WIDTH)))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+# Get video properties for saving
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # Setup temporary file for the X-Ray video
@@ -90,6 +90,7 @@ def analyze_diagnostic_swing(video_path, club_type=None):
         feedback += "\n\n✅ **ON-PLANE:** Hands stayed inside the plane."
 
     return feedback, tfile.name # Returns a Tuple
+
 
 
 
