@@ -1,9 +1,9 @@
 import streamlit as st
 import os
 
-# Your custom modules
 from ai_coach import vibe_coach, coach_chat
-from swing_analyzer import analyze_diagnostic_swing
+# Import BOTH functions from swing_analyzer
+from swing_analyzer import analyze_diagnostic_swing, analyze_wrist_action
 from wrist_tracker import drill_coach
 
 st.set_page_config(page_title="AI Golf Academy", layout="centered")
@@ -183,6 +183,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
