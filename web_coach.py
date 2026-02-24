@@ -123,39 +123,56 @@ if uploaded_file is not None:
 
     st.divider()
 
-    # --- 2. X-RAY DIAGNOSTIC ---
+# --- 2. X-RAY DIAGNOSTIC ---
     if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
         with st.spinner("Processing X-Ray Vision..."):
             try:
+                # We expect a tuple back: (report_text, file_path)
                 report, xray_video_path = analyze_diagnostic_swing(video_path, club_type)
                 
+                # Read the newly converted MP4 into memory
                 with open(xray_video_path, "rb") as video_file:
                     video_bytes = video_file.read()
                 
-                # --- UPDATE THIS LINE ---
+                # Display with the explicit MP4 format for Safari/Firefox
                 st.video(video_bytes, format="video/mp4")
-                # -------------------------
                 
                 st.info(report)
-                st.download_button("💾 Save X-Ray Video", data=video_bytes, file_name="XRay_Swing.mp4", mime="video/mp4", key="save_xray", use_container_width=True)
-            except Exception as e:
-                st.error(f"Error processing X-Ray: {e}") 
                 
+                # The download button now points to the same MP4
+                st.download_button(
+                    label="💾 Save X-Ray Video", 
+                    data=video_bytes, 
+                    file_name="XRay_Swing_Analysis.mp4", 
+                    mime="video/mp4", 
+                    key="save_xray", 
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Error processing X-Ray: {e}")
+
     # --- 3. WRIST LAB ---
     if st.button("⌚ Run Wrist Lab", use_container_width=True):
         with st.spinner("Analyzing Wrist Release..."):
             try:
-                # Catch both the feedback text and the video path
+                # Same tuple pattern for the wrist lab
                 wrist_report, wrist_video_path = analyze_wrist_action(video_path)
                 
                 with open(wrist_video_path, "rb") as video_file:
                     video_bytes = video_file.read()
                 
-                # --- CRITICAL FOR FIREFOX/SAFARI ---
                 st.video(video_bytes, format="video/mp4")
                 
                 st.info(wrist_report)
-                st.download_button("💾 Save Wrist Video", data=video_bytes, file_name="Wrist_Lab.mp4", mime="video/mp4", key="save_wrist")
+                
+                st.download_button(
+                    label="💾 Save Wrist Video", 
+                    data=video_bytes, 
+                    file_name="Wrist_Lab_Analysis.mp4", 
+                    mime="video/mp4", 
+                    key="save_wrist",
+                    use_container_width=True
+                )
             except Exception as e:
                 st.error(f"Error in Wrist Lab: {e}")
 
@@ -166,6 +183,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
