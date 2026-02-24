@@ -66,15 +66,26 @@ if uploaded_file is not None:
     if st.button("💬 Ask AI Vibe Coach", use_container_width=True):
         with st.spinner(f"Consulting {selected_model_display}..."):
             try:
-                result_context = f"Club: {club_type}, Shape: {shape}, Contact: {contact}, Direction: {direction}"
+                # A. Run the technical OpenCV Math first
+                # (video_path is the variable where your video is saved)
+                math_feedback = analyze_diagnostic_swing(video_path)
+                
+                # B. Combine your inputs with the math result
+                result_context = (
+                    f"Club: {club_type}, Shape: {shape}, Contact: {contact}, "
+                    f"Direction: {direction}. OpenCV Analysis: {math_feedback}"
+                )
+                
+                # C. Send everything to the AI Vibe Coach
                 coach_report = vibe_coach(video_path, result_context, selected_model_id)
                 
                 # Save to memory to trigger the chat box!
                 st.session_state.coach_report = coach_report
                 st.session_state.chat_messages = []
+                
             except Exception as e:
                 st.error(f"Error communicating with AI: {e}")
-
+    
     # --- CHAT UI (Only shows if a report exists) ---
     if st.session_state.coach_report:
         st.success("Analysis Complete!")
@@ -141,6 +152,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
