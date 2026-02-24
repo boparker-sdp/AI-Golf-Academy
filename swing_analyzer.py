@@ -27,7 +27,7 @@ def analyze_diagnostic_swing(video_path):
     ott_detected = False
     
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
-        while cap.is_Opened():
+        while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
@@ -78,5 +78,6 @@ def analyze_diagnostic_swing(video_path):
         feedback += "\n\n✅ **ON-PLANE:** Your hands stayed inside the plane. This allows for an 'Inside-Out' or neutral path."
 
     return feedback
+
 
 
