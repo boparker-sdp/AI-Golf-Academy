@@ -25,14 +25,13 @@ def analyze_diagnostic_swing(video_path, club_type=None): # OR analyze_wrist_act
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
 
-    # --- THIS IS WHERE THE NEW CODE GOES ---
-    # Setup temporary file for the browser-friendly video
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    # --- Using webm for linux ---
+    #  Use .webm extension
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.webm')
     
-    # Use 'mp4v' to ensure the Linux server uses a software encoder
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    #  Use VP80 - This is a software-only codec that doesn't need hardware drivers
+    fourcc = cv2.VideoWriter_fourcc(*'VP80')
     
-    # This 'out' object is what we use to "save" the red lines to the new file
     out = cv2.VideoWriter(tfile.name, fourcc, fps, (width, height))
     # ---------------------------------------
 
@@ -101,6 +100,7 @@ def analyze_diagnostic_swing(video_path, club_type=None): # OR analyze_wrist_act
         feedback += "\n\n✅ **ON-PLANE:** Hands stayed inside the plane."
 
     return feedback, tfile.name # Returns a Tuple
+
 
 
 
