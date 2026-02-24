@@ -70,11 +70,12 @@ def analyze_diagnostic_swing(video_path):
 
         cap.release()
 
-    # Final Feedback Logic
-    feedback = "Swing analysis complete. You focused well on your hinges."
+    # Updated Final Feedback Logic in swing_analyzer.py
+        feedback = "Technical Swing Plane Analysis:"
     if ott_detected:
-        feedback += "\n\n⚠️ **OVER-THE-TOP DETECTED:** Your hands are crossing above the swing plane during the downswing. This usually leads to slices or 'thin' contact."
+        feedback += "\n\n⚠️ **OVER-THE-TOP:** Your hands moved outside the shoulder-to-ball plane during the downswing. This 'Outside-In' path is the primary cause of a slice."
     else:
-        feedback += "\n\n✅ **PLANE CONTACT:** Good job keeping the hands inside the plane! That's that 'Inside-Out' path you're looking for."
+        feedback += "\n\n✅ **ON-PLANE:** Your hands stayed inside the plane. This allows for an 'Inside-Out' or neutral path."
 
     return feedback
+
