@@ -200,6 +200,47 @@ def analyze_wrist_action(video_path):
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
+                # --- DYNAMIC SWING WEDGE (Body-Matched) ---
+                # 1. Define the joints we need for the angle
+                # We use 'landmarks' which is already available in your loop
+                shoulder_y_coord = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y
+                hip_y_coord = landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y
+                wrist_conf = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
+
+                # 2. Capture the "Address" height once
+                if backswing_top_y is None and wrist_conf > 0.8:
+                    backswing_top_y = int(shoulder_y_coord * height)
+                    forward_bot_y = int(hip_y_coord * height)
+
+                # 3. Draw the Angled Wedge (The "V" Shape)
+                if backswing_top_y is not None:
+                    overlay = frame.copy()
+                    
+                    # We create a "V" shape that is narrow at the ball (right) 
+                    # and wide behind the golfer (left)
+                    pts = np.array([
+                        [width, backswing_top_y + 20], # Ball Side Top
+                        [width, forward_bot_y - 20],   # Ball Side Bottom
+                        [0, forward_bot_y + 100],      # Behind Side Bottom (Angled Down)
+                        [0, backswing_top_y - 100]     # Behind Side Top (Angled Up)
+                    ], np.int32)
+
+                    # Fill it with a brighter gray so you can see it
+                    cv2.fillPoly(overlay, [pts], (220, 220, 220))
+                    cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+                    
+                    # 4. Neon Boundary Lines (The "Pop" factor)
+                    # Neon Blue for Shoulder Plane
+                    cv2.line(frame, (width, backswing_top_y + 20), (0, backswing_top_y - 100), (255, 255, 0), 3) 
+                    # Neon Green for Hip Slot
+                    cv2.line(frame, (width, forward_bot_y - 20), (0, forward_bot_y + 100), (0, 255, 0), 3)
+
+                    # Labels
+                    cv2.putText(frame, "PLANE CEILING", (10, backswing_top_y - 110), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
+                    cv2.putText(frame, "THE SLOT", (10, forward_bot_y + 130), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
                 # --- BACKSWING GUIDE RAIL LOGIC ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
                 curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
@@ -350,6 +391,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
