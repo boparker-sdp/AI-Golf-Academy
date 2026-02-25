@@ -247,18 +247,20 @@ def analyze_wrist_action(video_path):
                     lag_at_top = int(raw_angle)
 
                 # 3. Capture: Lag at Impact (With Finish-Swing Lockout)
-                # 'impact_locked' should be initialized as False at the top of the function
+                # Only run if we haven't 'locked' the result yet
                 if is_downswing and curr_wrist_y > 0.5 and not impact_locked:
                     if wrist_confidence > 0.5:
-                        # 1. Update as long as hands are moving down
+                        
+                        # A. Update as long as hands are moving DOWN (toward impact)
                         if lag_at_impact is None or curr_wrist_y >= max_wrist_height:
                             lag_at_impact = int(raw_angle)
                             max_wrist_height = curr_wrist_y 
                         
-                        # 2. THE DEADBOLT: If hands move 20% back up from the lowest point, lock it.
+                        # B. THE LOCKOUT: If hands move 10% back UP from the lowest point, stop forever.
+                        # MediaPipe Y: 0.0 is top, 1.0 is bottom. So "up" means a smaller Y value.
                         if curr_wrist_y < (max_wrist_height - 0.10):
                             impact_locked = True
-
+                            
                 # --- DISPLAY RECAP LABELS ---
                 if lag_at_top is not None:
                     # Top Color: Lower is sharper/better
@@ -327,6 +329,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
