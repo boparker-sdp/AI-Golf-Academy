@@ -228,13 +228,6 @@ def analyze_wrist_action(video_path):
                 cv2.line(frame, p2, p3, (255, 255, 255), 2)
                 cv2.circle(frame, p3, 10, (0, 255, 255), -1)
 
-                # --- VISUAL DEBUG: IMPACT ZONE ---
-                # Draw a green boundary line at the trigger height (0.5 or 50% of screen)
-                trigger_y = int(0.5 * height)
-                cv2.line(frame, (0, trigger_y), (width, trigger_y), (0, 255, 0), 1, cv2.LINE_AA)
-                cv2.putText(frame, "IMPACT MEASUREMENT ZONE", (10, trigger_y + 20), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-
                 # --- LAG LANDMARK CAPTURE ---
                 # 1. Calculate the raw hinge angle at the elbow
                 ba = np.array(shoulder) - np.array(elbow)
@@ -329,6 +322,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
