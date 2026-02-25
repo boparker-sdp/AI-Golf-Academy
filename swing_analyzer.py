@@ -227,6 +227,13 @@ def analyze_wrist_action(video_path):
                 cv2.line(frame, p2, p3, (255, 255, 255), 2)
                 cv2.circle(frame, p3, 10, (0, 255, 255), -1)
 
+                # --- VISUAL DEBUG: IMPACT ZONE ---
+                # Draw a green boundary line at the trigger height (0.5 or 50% of screen)
+                trigger_y = int(0.5 * height)
+                cv2.line(frame, (0, trigger_y), (width, trigger_y), (0, 255, 0), 1, cv2.LINE_AA)
+                cv2.putText(frame, "IMPACT MEASUREMENT ZONE", (10, trigger_y + 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+
                 # --- LAG MILESTONE CAPTURE ---
                 # Calculate the raw hinge angle at the elbow
                 ba = np.array(shoulder) - np.array(elbow)
@@ -239,8 +246,9 @@ def analyze_wrist_action(video_path):
                     lag_at_top = int(raw_angle)
 
                 # 2. Capture: Lag at Impact (Release point)
-                # This updates as long as hands are in the lower 30% of the frame
-                if is_downswing and curr_wrist_y > 0.7:
+                # Change 0.7 to 0.5 to start capturing as soon as hands pass the middle of the frame
+                if is_downswing and curr_wrist_y > 0.5:
+                    # This will keep updating the number until the very last frame of the downswing
                     lag_at_impact = int(raw_angle)
 
                 # --- DISPLAY RECAP LABELS ---
@@ -297,6 +305,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
