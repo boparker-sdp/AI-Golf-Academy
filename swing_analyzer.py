@@ -234,22 +234,24 @@ def analyze_wrist_action(video_path):
                 cv2.putText(frame, "IMPACT MEASUREMENT ZONE", (10, trigger_y + 20), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
-                # --- LAG MILESTONE CAPTURE ---
-                # Calculate the raw hinge angle at the elbow
+                # --- LAG LANDMARK CAPTURE ---
+                # 1. Calculate the raw hinge angle at the elbow
                 ba = np.array(shoulder) - np.array(elbow)
                 bc = np.array(wrist) - np.array(elbow)
                 cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
                 raw_angle = np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-                # 1. Capture: Lag at the Top (Transition)
+                # 2. Capture: Lag at the Top (Transition)
                 if is_downswing and lag_at_top is None:
                     lag_at_top = int(raw_angle)
 
-                # 2. Capture: Lag at Impact (Release point)
-                # Change 0.7 to 0.5 to start capturing as soon as hands pass the middle of the frame
+                # 3. Capture: Lag at Impact (THE FREEZE LOGIC GOES HERE)
                 if is_downswing and curr_wrist_y > 0.5:
-                    # This will keep updating the number until the very last frame of the downswing
-                    lag_at_impact = int(raw_angle)
+                    if wrist_confidence > 0.5:
+                        # THIS IS THE BLOCK YOU JUST ASKED ABOUT:
+                        if lag_at_impact is None or curr_wrist_y >= max_wrist_height:
+                            lag_at_impact = int(raw_angle)
+                            max_wrist_height = curr_wrist_y  # Updates 'lowest point'
 
                 # --- DISPLAY RECAP LABELS ---
                 if lag_at_top is not None:
@@ -261,20 +263,15 @@ def analyze_wrist_action(video_path):
                     cv2.putText(frame, f"TOP LAG: {lag_at_top} DEG", (20, 40), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, top_color, 2)
                 
+                # --- DISPLAY IMPACT RECAP ---
                 if lag_at_impact is not None:
-                    # Impact Color: Higher is straighter/better
-                    if lag_at_impact > 165: imp_color = (0, 255, 0)   # Green
-                    elif lag_at_impact > 145: imp_color = (0, 165, 255) # Orange
-                    else: imp_color = (0, 0, 255)                     # Red
-                    
-                    cv2.putText(frame, f"IMPACT LAG: {lag_at_impact} DEG", (20, 70), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, imp_color, 2)
-                
-                if lag_at_impact is not None:
-                    # Impact Color Logic (Higher is better/straighter)
-                    if lag_at_impact > 160: imp_color = (0, 255, 0)   # Green
-                    elif lag_at_impact > 140: imp_color = (0, 165, 255) # Orange
-                    else: imp_color = (0, 0, 255)                     # Red
+                    # Impact Color Logic: Higher is straighter/better
+                    if lag_at_impact > 165: 
+                        imp_color = (0, 255, 0)      # Green (Elite Extension)
+                    elif lag_at_impact > 145: 
+                        imp_color = (0, 165, 255)    # Orange (Solid)
+                    else: 
+                        imp_color = (0, 0, 255)      # Red (Casting/Scooping)
                     
                     cv2.putText(frame, f"IMPACT LAG: {lag_at_impact} DEG", (20, 70), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, imp_color, 2)
@@ -324,6 +321,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
