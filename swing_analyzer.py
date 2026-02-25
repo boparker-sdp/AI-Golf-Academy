@@ -34,6 +34,10 @@ def analyze_diagnostic_swing(video_path, club_type=None):
     max_wrist_height = 1.0 
     is_downswing = False
     ott_detected = False
+    address_head_y = None
+    address_hip_x = None
+    head_status = "STABLE"
+    hip_status = "STABLE"
     
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
@@ -56,6 +60,53 @@ def analyze_diagnostic_swing(video_path, club_type=None):
 
                 # DRAW: The Red Plane Line
                 cv2.line(frame, address_plane_line[0], address_plane_line[1], (0, 0, 255), 3)
+
+                # --- NEW DRAWING CODE STARTS HERE ---
+                # 1. Head/Chin Box (Tracking vertical movement)
+                nose = landmarks[mp_pose.PoseLandmark.NOSE]
+                head_center = (int(nose.x * width), int(nose.y * height))
+                
+                cv2.circle(frame, head_center, 25, (0, 255, 0), 2) # Green circle for head
+
+                # 2. Hip/Core Box (Tracking lateral sway)
+                l_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP]
+                r_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
+                hip_center_x = int((l_hip.x + r_hip.x) / 2 * width)
+                hip_center_y = int((l_hip.y + r_hip.y) / 2 * height)
+                
+                # Green box for hip stability
+                cv2.rectangle(frame, 
+                             (hip_center_x - 40, hip_center_y - 40), 
+                             (hip_center_x + 40, hip_center_y + 40), 
+                             (0, 255, 0), 2) 
+                # --- NEW DRAWING CODE ENDS HERE ---
+
+                # --- HEAD & HIP STABILITY LOGIC ---
+                if address_head_y is None:
+                    address_head_y = landmarks[mp_pose.PoseLandmark.NOSE].y
+                    address_hip_x = (landmarks[mp_pose.PoseLandmark.LEFT_HIP].x + landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x) / 2
+
+                # Check Vertical Head Movement (Dipping or Lifting)
+                curr_head_y = landmarks[mp_pose.PoseLandmark.NOSE].y
+                if curr_head_y > address_head_y + 0.03: # Threshold
+                    head_status = "DIPPING"
+                elif curr_head_y < address_head_y - 0.03:
+                    head_status = "LIFTING"
+
+                # Check Lateral Hip Movement (Swaying)
+                curr_hip_x = (landmarks[mp_pose.PoseLandmark.LEFT_HIP].x + landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x) / 2
+                if abs(curr_hip_x - address_hip_x) > 0.05:
+                    hip_status = "SWAYING"
+
+                # --- DRAW THE "POST-IT" STATUS BOARD ---
+                # Draw a dark semi-transparent overlay for readability
+                cv2.rectangle(frame, (10, 10), (250, 90), (0, 0, 0), -1)
+                
+                # Write the text
+                cv2.putText(frame, f"HEAD: {head_status}", (20, 40), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                cv2.putText(frame, f"HIPS: {hip_status}", (20, 75), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
                 # Tracking Logic
                 curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
@@ -131,3 +182,4 @@ def analyze_wrist_action(video_path):
         os.remove(raw_tfile.name)
 
     return "Wrist Action Analysis Complete.", web_tfile.name
+
