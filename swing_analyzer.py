@@ -189,14 +189,22 @@ def analyze_wrist_action(video_path):
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
-                # --- JITTER FILTER & TRAIL ---
+                # --- JITTER & ELBOW-JUMP FILTER ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-                if wrist_confidence > 0.7:
-                    # Only add if moving > 5 pixels to stop the "nest" look
-                    if not wrist_trail or np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1])) > 5:
-                        wrist_trail.append(p3)
                 
-                if len(wrist_trail) > 30: # Limit trail length for clarity
+                # We bump confidence to 0.8 and check for 'teleportation' jumps
+                if wrist_confidence > 0.8:
+                    if not wrist_trail:
+                        wrist_trail.append(p3)
+                    else:
+                        # Calculate distance from last known wrist position
+                        dist = np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1]))
+                        
+                        # Only add if it's moving naturally (>5px) but hasn't jumped to elbow (<50px)
+                        if 5 < dist < 50: 
+                            wrist_trail.append(p3)
+                
+                if len(wrist_trail) > 30: 
                     wrist_trail.pop(0)
 
                 if len(wrist_trail) > 1:
@@ -244,6 +252,7 @@ def analyze_wrist_action(video_path):
 
     return (f"Wrist Lab: Hand path and lag tracking complete. "
             f"\n\n🔥 **PEAK LAG:** {int(max_lag_sharpness)}°"), web_tfile.name
+
 
 
 
