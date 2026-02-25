@@ -279,6 +279,25 @@ def analyze_wrist_action(video_path):
                     cv2.putText(frame, f"IMPACT LAG: {lag_at_impact} DEG", (20, 70), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, imp_color, 2)
 
+                # --- [A] D. Status Indicator (Moving to the bottom for overlay) ---
+                status_text = "BACKSWING TRACKING..." if not is_downswing else "GUIDE ACTIVE"
+                status_color = (0, 255, 255) if not is_downswing else (0, 255, 0)
+                cv2.putText(frame, status_text, (20, height - 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+
+                # --- [B] IDEAL RANGES CHEAT SHEET (Upper Right) ---
+                # Background box for readability
+                cv2.rectangle(frame, (width-230, 10), (width-10, 85), (50, 50, 50), -1)
+                cv2.putText(frame, "IDEAL RANGES:", (width-220, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                cv2.putText(frame, "Top Lag: < 90 deg", (width-220, 55), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                cv2.putText(frame, "Impact: > 165 deg", (width-220, 75), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+                # --- [C] WRITE FRAME ---
+                out.write(frame)
+
             out.write(frame)
         
         cap.release()
@@ -305,6 +324,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
