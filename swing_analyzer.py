@@ -157,22 +157,22 @@ def analyze_wrist_action(video_path):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    lag_angles = [] # To store the last 5 angles for smoothing
-
+    
+    # --- PERSISTENT DATA ---
+    lag_angles = []     # For the smoothed meter
+    wrist_trail = []    # For the yellow path
+    max_lag_sharpness = 180.0
+    
     # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(raw_tfile.name, fourcc, fps, (width, height))
 
-    # --- PERSISTENT DATA ---
-    lag_angles = []     # For the smoothed meter
-    wrist_trail = []    # For the yellow path
-    max_lag_sharpness = 180.0  # We start at 180 (straight arm) and look for the smallest angle
-
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
-            if not ret: break
+            if not ret:
+                break
 
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose.process(image)
@@ -180,43 +180,35 @@ def analyze_wrist_action(video_path):
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
                 
-                # Get Arm Coordinates
+                # Coordinates
                 shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
                 elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
                 wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
 
-                # ... (shoulders, elbow, wrist coords defined above) ...
                 p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
-                p3 = (int(wrist[0] * width), int(wrist[1] * height)) # LAST LINE BEFORE
+                p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
-                # --- NEW CODE START ---
-                # Get confidence score for the wrist
+                # --- JITTER FILTER & TRAIL ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-
-                # ONLY track if we are confident (> 0.7)
                 if wrist_confidence > 0.7:
+                    # Only add if moving > 5 pixels to stop the "nest" look
                     if not wrist_trail or np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1])) > 5:
                         wrist_trail.append(p3)
                 
-                if len(wrist_trail) > 30:
+                if len(wrist_trail) > 30: # Limit trail length for clarity
                     wrist_trail.pop(0)
 
                 if len(wrist_trail) > 1:
                     for i in range(1, len(wrist_trail)):
                         cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 2)
-                # --- NEW CODE END ---
 
-                cv2.line(frame, p1, p2, (255, 255, 255), 2) # FIRST LINE AFTER
-                cv2.line(frame, p2, p3, (255, 255, 255), 2) # Elbow to Wrist
-                cv2.line(frame, p1, p2, (255, 255, 255), 2) # Shoulder to Elbow
-                cv2.line(frame, p2, p3, (255, 255, 255), 2) # Elbow to Wrist
+                # --- SKELETON ---
+                cv2.line(frame, p1, p2, (255, 255, 255), 2)
+                cv2.line(frame, p2, p3, (255, 255, 255), 2)
                 cv2.circle(frame, p3, 10, (0, 255, 255), -1)
 
-                # ... (Skeleton lines were drawn right above this) ...
-                cv2.circle(frame, p3, 10, (0, 255, 255), -1)
-
-                # --- NEW SMOOTHED BLOCK STARTS HERE ---
+                # --- SMOOTHED LAG CALCULATION ---
                 ba = np.array(shoulder) - np.array(elbow)
                 bc = np.array(wrist) - np.array(elbow)
                 cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
@@ -227,30 +219,22 @@ def analyze_wrist_action(video_path):
                     lag_angles.pop(0)
                 
                 smoothed_angle = sum(lag_angles) / len(lag_angles)
-                # Track the sharpest angle (the smallest number is the most lag)
+                
                 if smoothed_angle < max_lag_sharpness:
                     max_lag_sharpness = smoothed_angle
 
+                # --- DRAW METER ---
                 cv2.rectangle(frame, (width-220, 10), (width-10, 60), (0, 0, 0), -1)
                 color = (0, 255, 0) if smoothed_angle < 90 else (0, 165, 255)
-                
                 cv2.putText(frame, f"LAG: {int(smoothed_angle)} DEG", (width-200, 45), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                # --- NEW SMOOTHED BLOCK ENDS HERE ---
-
-            # This is the line that captures the frame with all your drawings
-            out.write(frame) 
-        
-        cap.release()
-        out.release()
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
             out.write(frame)
         
         cap.release()
         out.release()
 
-    # 2. CONVERSION STEP (Same as Diagnostic)
+    # 2. CONVERSION
     web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], 
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -258,18 +242,8 @@ def analyze_wrist_action(video_path):
     if os.path.exists(raw_tfile.name):
         os.remove(raw_tfile.name)
 
-    return "Wrist Lab: Tracking hand path and elbow lag. Look for a consistent arc in the yellow trail.", web_tfile.name
-
-    web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_tfile.name], 
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    if os.path.exists(raw_tfile.name):
-        os.remove(raw_tfile.name)
-
-    return (f"Wrist Lab: Tracking hand path and elbow lag. "
-            f"\n\n🔥 **PEAK LAG:** {int(max_lag_sharpness)}° "
-            f"\n\n(A lower number indicates a deeper hinge and more potential power!)"), web_tfile.name
+    return (f"Wrist Lab: Hand path and lag tracking complete. "
+            f"\n\n🔥 **PEAK LAG:** {int(max_lag_sharpness)}°"), web_tfile.name
 
 
 
