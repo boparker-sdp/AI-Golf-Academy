@@ -153,26 +153,73 @@ def analyze_diagnostic_swing(video_path, club_type=None):
     return feedback, web_tfile.name
 
 def analyze_wrist_action(video_path):
-    """Follows the same double-buffer logic as the diagnostic tool."""
     cap = cv2.VideoCapture(video_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
 
+    # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(raw_tfile.name, fourcc, fps, (width, height))
 
-    # [Simplified wrist tracking for this example]
-    with mp_pose.Pose() as pose:
+    wrist_trail = [] # To draw the "path" of the hands
+
+    with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
-            # Logic for drawing wrist data would go here...
+
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(image)
+
+            if results.pose_landmarks:
+                landmarks = results.pose_landmarks.landmark
+                
+                # Get Arm Coordinates
+                shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
+                elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
+                wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
+
+                # Convert to Pixels
+                p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
+                p2 = (int(elbow[0] * width), int(elbow[1] * height))
+                p3 = (int(wrist[0] * width), int(wrist[1] * height))
+
+                # DRAW: Skeleton and Trail
+                wrist_trail.append(p3)
+                for i in range(1, len(wrist_trail)):
+                    cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 2) # Yellow trail
+                
+                cv2.line(frame, p1, p2, (255, 255, 255), 2) # Shoulder to Elbow
+                cv2.line(frame, p2, p3, (255, 255, 255), 2) # Elbow to Wrist
+                cv2.circle(frame, p3, 10, (0, 255, 255), -1)
+
+                # CALCULATE LAG ANGLE (Angle at the elbow)
+                ba = np.array(shoulder) - np.array(elbow)
+                bc = np.array(wrist) - np.array(elbow)
+                cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+                angle = np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
+
+                # DRAW: Lag "Post-it"
+                cv2.rectangle(frame, (width-220, 10), (width-10, 60), (0, 0, 0), -1)
+                cv2.putText(frame, f"LAG: {int(angle)} DEG", (width-200, 45), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
             out.write(frame)
         
         cap.release()
         out.release()
+
+    # 2. CONVERSION STEP (Same as Diagnostic)
+    web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], 
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    if os.path.exists(raw_tfile.name):
+        os.remove(raw_tfile.name)
+
+    return "Wrist Lab: Tracking hand path and elbow lag. Look for a consistent arc in the yellow trail.", web_tfile.name
 
     web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_tfile.name], 
@@ -182,4 +229,5 @@ def analyze_wrist_action(video_path):
         os.remove(raw_tfile.name)
 
     return "Wrist Action Analysis Complete.", web_tfile.name
+
 
