@@ -165,6 +165,8 @@ def analyze_wrist_action(video_path):
     # NEW STATE VARIABLES
     is_downswing = False
     max_wrist_height = 1.0  # Normalized 0-1, so 1.0 is the bottom
+    lag_at_top = None
+    lag_at_impact = None
     
     # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
@@ -225,26 +227,49 @@ def analyze_wrist_action(video_path):
                 cv2.line(frame, p2, p3, (255, 255, 255), 2)
                 cv2.circle(frame, p3, 10, (0, 255, 255), -1)
 
-                # --- SMOOTHED LAG CALCULATION ---
+                # --- LAG MILESTONE CAPTURE ---
+                # Calculate the raw hinge angle at the elbow
                 ba = np.array(shoulder) - np.array(elbow)
                 bc = np.array(wrist) - np.array(elbow)
                 cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
                 raw_angle = np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-                lag_angles.append(raw_angle)
-                if len(lag_angles) > 5:
-                    lag_angles.pop(0)
-                
-                smoothed_angle = sum(lag_angles) / len(lag_angles)
-                
-                if smoothed_angle < max_lag_sharpness:
-                    max_lag_sharpness = smoothed_angle
+                # 1. Capture: Lag at the Top (Transition)
+                if is_downswing and lag_at_top is None:
+                    lag_at_top = int(raw_angle)
 
-                # --- DRAW METER ---
-                cv2.rectangle(frame, (width-220, 10), (width-10, 60), (0, 0, 0), -1)
-                color = (0, 255, 0) if smoothed_angle < 90 else (0, 165, 255)
-                cv2.putText(frame, f"LAG: {int(smoothed_angle)} DEG", (width-200, 45), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                # 2. Capture: Lag at Impact (Release point)
+                # This updates as long as hands are in the lower 30% of the frame
+                if is_downswing and curr_wrist_y > 0.7:
+                    lag_at_impact = int(raw_angle)
+
+                # --- DISPLAY RECAP LABELS ---
+                if lag_at_top is not None:
+                    # Top Color: Lower is sharper/better
+                    if lag_at_top < 90: top_color = (0, 255, 0)      # Green
+                    elif lag_at_top < 110: top_color = (0, 165, 255) # Orange
+                    else: top_color = (0, 0, 255)                    # Red
+                    
+                    cv2.putText(frame, f"TOP LAG: {lag_at_top} DEG", (20, 40), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, top_color, 2)
+                
+                if lag_at_impact is not None:
+                    # Impact Color: Higher is straighter/better
+                    if lag_at_impact > 165: imp_color = (0, 255, 0)   # Green
+                    elif lag_at_impact > 145: imp_color = (0, 165, 255) # Orange
+                    else: imp_color = (0, 0, 255)                     # Red
+                    
+                    cv2.putText(frame, f"IMPACT LAG: {lag_at_impact} DEG", (20, 70), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, imp_color, 2)
+                
+                if lag_at_impact is not None:
+                    # Impact Color Logic (Higher is better/straighter)
+                    if lag_at_impact > 160: imp_color = (0, 255, 0)   # Green
+                    elif lag_at_impact > 140: imp_color = (0, 165, 255) # Orange
+                    else: imp_color = (0, 0, 255)                     # Red
+                    
+                    cv2.putText(frame, f"IMPACT LAG: {lag_at_impact} DEG", (20, 70), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, imp_color, 2)
 
             out.write(frame)
         
@@ -259,8 +284,19 @@ def analyze_wrist_action(video_path):
     if os.path.exists(raw_tfile.name):
         os.remove(raw_tfile.name)
 
-    return (f"Wrist Lab: Hand path and lag tracking complete. "
-            f"\n\n🔥 **PEAK LAG:** {int(max_lag_sharpness)}°"), web_tfile.name
+    # Create the summary text with a fall-back if stats weren't captured
+    top_stat = f"{lag_at_top}°" if lag_at_top else "Not captured"
+    impact_stat = f"{lag_at_impact}°" if lag_at_impact else "Not captured"
+
+    summary = (
+        f"### 🏌️ Wrist Lab Analysis\n"
+        f"**Top of Swing Lag (Hinge):** {top_stat}\n"
+        f"**Impact Lag (Release):** {impact_stat}\n\n"
+        f"**Coach's Note:** Aim for < 90° at the top and > 165° at impact. "
+        f"If your impact lag is low (Red), focus on 'extending' your arms through the ball!"
+    )
+
+    return summary, web_tfile.name
 
 
 
