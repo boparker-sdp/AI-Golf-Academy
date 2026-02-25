@@ -159,9 +159,12 @@ def analyze_wrist_action(video_path):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # --- PERSISTENT DATA ---
-    lag_angles = []     # For the smoothed meter
-    wrist_trail = []    # For the yellow path
+    lag_angles = []
+    wrist_trail = []
     max_lag_sharpness = 180.0
+    # NEW STATE VARIABLES
+    is_downswing = False
+    max_wrist_height = 1.0  # Normalized 0-1, so 1.0 is the bottom
     
     # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
@@ -189,28 +192,34 @@ def analyze_wrist_action(video_path):
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
-                # --- JITTER & ELBOW-JUMP FILTER ---
+                # --- BACKSWING GUIDE RAIL LOGIC ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
+                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
                 
-                # We bump confidence to 0.8 and check for 'teleportation' jumps
-                if wrist_confidence > 0.8:
-                    if not wrist_trail:
-                        wrist_trail.append(p3)
-                    else:
-                        # Calculate distance from last known wrist position
-                        dist = np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1]))
-                        
-                        # Only add if it's moving naturally (>5px) but hasn't jumped to elbow (<50px)
-                        if 5 < dist < 50: 
-                            wrist_trail.append(p3)
-                
-                if len(wrist_trail) > 30: 
-                    wrist_trail.pop(0)
+                # A. Detect Transition
+                if not is_downswing:
+                    if curr_wrist_y < max_wrist_height:
+                        max_wrist_height = curr_wrist_y 
+                    elif curr_wrist_y > (max_wrist_height + 0.05):
+                        is_downswing = True 
 
+                # B. ONLY add to trail during Backswing
+                if not is_downswing and wrist_confidence > 0.8:
+                    dist = np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1])) if wrist_trail else 0
+                    if not wrist_trail or (5 < dist < 50):
+                        wrist_trail.append(p3)
+                
+                # C. Draw the Trail
                 if len(wrist_trail) > 1:
                     for i in range(1, len(wrist_trail)):
                         cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 2)
 
+                # D. Status Indicator (New)
+                status_text = "BACKSWING TRACKING..." if not is_downswing else "GUIDE ACTIVE"
+                status_color = (0, 255, 255) if not is_downswing else (0, 255, 0)
+                cv2.putText(frame, status_text, (20, height - 20), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+                
                 # --- SKELETON ---
                 cv2.line(frame, p1, p2, (255, 255, 255), 2)
                 cv2.line(frame, p2, p3, (255, 255, 255), 2)
@@ -252,6 +261,7 @@ def analyze_wrist_action(video_path):
 
     return (f"Wrist Lab: Hand path and lag tracking complete. "
             f"\n\n🔥 **PEAK LAG:** {int(max_lag_sharpness)}°"), web_tfile.name
+
 
 
 
