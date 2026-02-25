@@ -167,6 +167,7 @@ def analyze_wrist_action(video_path):
     max_wrist_height = 1.0  # Normalized 0-1, so 1.0 is the bottom
     lag_at_top = None
     lag_at_impact = None
+    impact_locked = False
     
     # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
@@ -245,13 +246,18 @@ def analyze_wrist_action(video_path):
                 if is_downswing and lag_at_top is None:
                     lag_at_top = int(raw_angle)
 
-                # 3. Capture: Lag at Impact (THE FREEZE LOGIC GOES HERE)
-                if is_downswing and curr_wrist_y > 0.5:
+                # 3. Capture: Lag at Impact (With Finish-Swing Lockout)
+                # 'impact_locked' should be initialized as False at the top of the function
+                if is_downswing and curr_wrist_y > 0.5 and not impact_locked:
                     if wrist_confidence > 0.5:
-                        # THIS IS THE BLOCK YOU JUST ASKED ABOUT:
+                        # 1. Update as long as hands are moving down
                         if lag_at_impact is None or curr_wrist_y >= max_wrist_height:
                             lag_at_impact = int(raw_angle)
-                            max_wrist_height = curr_wrist_y  # Updates 'lowest point'
+                            max_wrist_height = curr_wrist_y 
+                        
+                        # 2. THE DEADBOLT: If hands move 20% back up from the lowest point, lock it.
+                        if curr_wrist_y < (max_wrist_height - 0.10):
+                            impact_locked = True
 
                 # --- DISPLAY RECAP LABELS ---
                 if lag_at_top is not None:
@@ -321,6 +327,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
