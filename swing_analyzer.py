@@ -199,6 +199,11 @@ def analyze_wrist_action(video_path):
                 p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
+
+                # --- BACKSWING GUIDE RAIL LOGIC ---
+                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
+                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
+                
                 # --- DUAL-CORRIDOR SYSTEM ---
                 # A. Capture heights at address (Calculated once)
                 if backswing_top_y is None and wrist_confidence > 0.8:
@@ -224,10 +229,6 @@ def analyze_wrist_action(video_path):
                     cv2.putText(frame, "THE SLOT (FORWARD)", (10, forward_bot_y - 5), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
-                # --- BACKSWING GUIDE RAIL LOGIC ---
-                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
-                
                 # A. Detect Transition
                 if not is_downswing:
                     if curr_wrist_y < max_wrist_height:
@@ -349,6 +350,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
