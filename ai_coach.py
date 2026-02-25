@@ -53,6 +53,8 @@ def coach_chat(question, previous_report, model_id):
     import os
     from google import genai
     
+    # It is slightly more efficient to initialize the client once, 
+    # but keeping it here for simplicity is fine for now.
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     
     prompt = f"""
@@ -67,9 +69,15 @@ def coach_chat(question, previous_report, model_id):
     Answer their question clearly, simply, and conversationally. If they ask to define a term (like 'laid off' or 'early extension'), explain it using simple biomechanics or visuals they can easily feel.
     """
     
-    response = client.models.generate_content(
-        model=model_id,
-        contents=prompt
-    )
-    
-    return response.text  # <-- This belongs to coach_chat!
+    try:
+        # Wrap the API call to catch server hiccups
+        response = client.models.generate_content(
+            model=model_id,
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        # Instead of crashing, we return a helpful message to the user
+        print(f"Error calling Gemini: {e}") # This shows up in your terminal/logs
+        return "I'm sorry, I hit a momentary snag while thinking about your swing. Could you please try asking that again?"
+
