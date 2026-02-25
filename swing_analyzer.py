@@ -168,6 +168,11 @@ def analyze_wrist_action(video_path):
     lag_at_top = None
     lag_at_impact = None
     impact_locked = False
+    # --- CORRIDOR DATA ---
+    backswing_top_y = None
+    backswing_bot_y = None
+    forward_top_y = None
+    forward_bot_y = None
     
     # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
@@ -194,6 +199,30 @@ def analyze_wrist_action(video_path):
                 p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
+                # --- DUAL-CORRIDOR SYSTEM ---
+                # A. Capture heights at address (Calculated once)
+                if backswing_top_y is None and wrist_confidence > 0.8:
+                    # Blue Lane (Backswing): Elbow to Mid-Forearm
+                    backswing_top_y = int(elbow[1] * height)
+                    backswing_bot_y = int(((wrist[1] + elbow[1]) / 2) * height)
+                    # Green Lane (The Slot): Mid-Forearm to Initial Wrist
+                    forward_top_y = backswing_bot_y
+                    forward_bot_y = int(wrist[1] * height)
+
+                # B. Draw the Lanes (Underlay)
+                if backswing_top_y is not None:
+                    overlay = frame.copy()
+                    # Blue Lane (Backswing)
+                    cv2.rectangle(overlay, (0, backswing_top_y), (width, backswing_bot_y), (255, 100, 0), -1)
+                    # Green Lane (Forward Slot)
+                    cv2.rectangle(overlay, (0, forward_top_y), (width, forward_bot_y), (0, 255, 0), -1)
+                    cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
+                    
+                    # Labels for clarity
+                    cv2.putText(frame, "BACKSWING LANE", (10, backswing_top_y + 15), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 100, 0), 1)
+                    cv2.putText(frame, "THE SLOT (FORWARD)", (10, forward_bot_y - 5), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
                 # --- BACKSWING GUIDE RAIL LOGIC ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
@@ -296,8 +325,6 @@ def analyze_wrist_action(video_path):
                 # --- [C] WRITE FRAME ---
                 out.write(frame)
 
-            out.write(frame)
-        
         cap.release()
         out.release()
 
@@ -322,6 +349,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
