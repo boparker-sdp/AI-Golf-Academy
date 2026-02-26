@@ -72,20 +72,31 @@ if uploaded_file is not None:
         # This displays the image and waits for a click
         coords = streamlit_image_coordinates(img, key="ball_picker")
         
-        if coords:
-            ball_pos = (coords['x'], coords['y'])
+       if coords:
+            # 1. Scaling Math (Keep this!)
+            original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            scale_x = original_width / img.width
+            scale_y = original_height / img.height
+            
+            ball_pos = (
+                int(coords['x'] * scale_x), 
+                int(coords['y'] * scale_y)
+            )
+            
             st.success(f"✅ Ball locked at {ball_pos}. Ready to analyze!")
 
-            # --- STEP 2: RUN ANALYSIS ---
+            # 2. The Trigger (Everything else goes inside here)
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
                 with st.spinner("Analyzing your path and lag..."):
-                    # We pass the CLICK and the START FRAME to the backend
+                    # Call the backend
                     summary, video_out = analyze_wrist_action(
                         video_path, 
                         ball_coords=ball_pos, 
                         start_frame=frame_idx
                     )
                     
+                    # 3. Display the Results (The four lines you asked about)
                     st.divider()
                     st.header("📊 Your Wrist Lab Report")
                     st.markdown(summary)
@@ -204,6 +215,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
