@@ -1,14 +1,13 @@
 import streamlit as st
 import cv2
+import numpy as np
 from PIL import Image
 from streamlit_image_coordinates import streamlit_image_coordinates
-from swing_analyzer import analyze_wrist_action
 
-from ai_coach import vibe_coach, coach_chat
-# Import BOTH functions from swing_analyzer
+# Import your custom modules
 from swing_analyzer import analyze_diagnostic_swing, analyze_wrist_action
+from ai_coach import vibe_coach, coach_chat
 from wrist_tracker import drill_coach
-
 st.set_page_config(page_title="AI Golf Academy", layout="centered")
 
 # --- INITIALIZE APP MEMORY ---
@@ -205,6 +204,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
