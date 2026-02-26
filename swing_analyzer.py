@@ -154,8 +154,7 @@ def analyze_diagnostic_swing(video_path, club_type=None):
 
 # 1. Update the signature to accept the new data from web_coach
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
-    # 1. INITIALIZATION & VIDEO SETUP
-    v_ball_pos = ball_coords 
+    # --- 1. INITIALIZATION ---
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     
@@ -163,119 +162,80 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
-    # 2. PERSISTENT STATE
-    backswing_top_y = None
-    forward_bot_y = None
+    # Anatomy Anchors (Set at Address)
+    anatomy_apex = None
+    shoulder_anchor = None
+    hip_anchor = None
+    
+    # State Variables
     is_downswing = False
-    max_wrist_height = 1.0  
-    lag_at_top = None
-    lag_at_impact = None
+    max_wrist_height = 1.0
+    lag_at_top, lag_at_impact = None, None
     impact_locked = False
     wrist_trail = []
-    
-    # 3. SETUP RAW RECORDER
-    raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(raw_tfile.name, fourcc, fps, (width, height))
 
-    with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+    raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
+    out = cv2.VideoWriter(raw_tfile.name, cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
+
+    with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
             
             results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                    
+            
             if results.pose_landmarks:
-                landmarks = results.pose_landmarks.landmark
-                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-
-                # --- NEW: LANDMARK MAPPING (Fixes the 'p1, p2, p3' crash) ---
-                # Normalized coords for math
-                shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
-                elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
-                wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
+                lm = results.pose_landmarks.landmark
                 
-                # Pixel coords for drawing (p1, p2, p3)
-                p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
-                p2 = (int(elbow[0] * width), int(elbow[1] * height))
-                p3 = (int(wrist[0] * width), int(wrist[1] * height))
+                # Current points (for lag math)
+                s = [lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
+                e = [lm[mp_pose.PoseLandmark.RIGHT_ELBOW].x, lm[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
+                w = [lm[mp_pose.PoseLandmark.RIGHT_WRIST].x, lm[mp_pose.PoseLandmark.RIGHT_WRIST].y]
+                h = [lm[mp_pose.PoseLandmark.RIGHT_HIP].x, lm[mp_pose.PoseLandmark.RIGHT_HIP].y]
 
-                # Lock in the heights at address
-                if backswing_top_y is None and wrist_confidence > 0.8:
-                    backswing_top_y = p2[1]
-                    forward_bot_y = p3[1]
+                # Convert to pixels for drawing
+                ps = (int(s[0]*width), int(s[1]*height))
+                pw = (int(w[0]*width), int(w[1]*height))
 
-                # --- TRANSITION DETECTION ---
-                curr_wrist_y = wrist[1]
-                if not is_downswing:
-                    if curr_wrist_y < max_wrist_height:
-                        max_wrist_height = curr_wrist_y 
-                    elif curr_wrist_y > (max_wrist_height + 0.05):
-                        is_downswing = True
+                # --- LOCK ANATOMY AT ADDRESS ---
+                if anatomy_apex is None:
+                    # We project lines to find the "Ground Apex"
+                    # Upper boundary: Shoulder to Elbow slope
+                    # Lower boundary: Hip to Wrist slope
+                    shoulder_anchor = ps
+                    hip_anchor = (int(h[0]*width), int(h[1]*height))
+                    
+                    # For simplicity, we project the cone fanning out to the ball area
+                    # based on your setup height
+                    anatomy_apex = (int(s[0]*width + 150), int(h[1]*height + 250))
 
-                # B. Trail Logic
-                if not is_downswing and wrist_confidence > 0.8:
-                    dist = np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1])) if wrist_trail else 0
-                    if not wrist_trail or (5 < dist < 50):
-                        wrist_trail.append(p3)
-
-                # C. Draw Skeleton & Trail
-                if len(wrist_trail) > 1:
-                    for i in range(1, len(wrist_trail)):
-                        cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 2)
-                
-                cv2.line(frame, p1, p2, (255, 255, 255), 2)
-                cv2.line(frame, p2, p3, (255, 255, 255), 2)
-                cv2.circle(frame, p3, 10, (0, 255, 255), -1)
-
-                # --- LAG MATH ---
-                ba = np.array(shoulder) - np.array(elbow)
-                bc = np.array(wrist) - np.array(elbow)
-                cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-                raw_angle = np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
-
-                if is_downswing and lag_at_top is None:
-                    lag_at_top = int(raw_angle)
-
-                if is_downswing and curr_wrist_y > 0.5 and not impact_locked:
-                    if lag_at_impact is None or curr_wrist_y >= max_wrist_height:
-                        lag_at_impact = int(raw_angle)
-                        max_wrist_height = curr_wrist_y 
-                    if curr_wrist_y < (max_wrist_height - 0.05):
-                        impact_locked = True
-            # --- 3. DRAW THE CONE (Anchoring to the Ball) ---
-            if v_ball_pos is not None and backswing_top_y is not None:
+                # --- DRAW THE ANATOMY CONE ---
                 overlay = frame.copy()
-                
-                # 1. Update the 'pts' array so the left side points stay at X=0 
-                # but the APEX stays at the ball's X coordinate.
                 pts = np.array([
-                    [v_ball_pos[0], v_ball_pos[1]], # Apex (The Ball)
-                    [0, backswing_top_y - 120],     # Top Left
-                    [0, forward_bot_y + 80]         # Bottom Left
+                    [anatomy_apex[0], anatomy_apex[1]], # Estimated Ball
+                    [0, shoulder_anchor[1]],           # From Shoulder
+                    [0, hip_anchor[1] + 100]           # From Hip
                 ], np.int32)
                 
                 cv2.fillPoly(overlay, [pts], (220, 220, 220))
                 cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-
-                # 2. Fix the Black Lines to fan OUT from the ball
-                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
-                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
-
-                # 3. Labels (Keep them on the left so they don't block the golfer)
-                cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
                 
-                # Small white dot at the ball position
-                cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
-  
+                # Sharp boundary lines
+                cv2.line(frame, anatomy_apex, (0, shoulder_anchor[1]), (0, 0, 0), 2)
+                cv2.line(frame, anatomy_apex, (0, hip_anchor[1] + 100), (0, 0, 0), 2)
+                
+                cv2.putText(frame, "PLANE CEILING", (50, shoulder_anchor[1] - 20), 0, 0.6, (0,0,0), 1)
+                cv2.putText(frame, "THE SLOT", (50, hip_anchor[1] + 80), 0, 0.6, (0,0,0), 1)
+
+                # (Keep your Wrist Trail and Lag Math logic below this...)
+                # ... [Wrist Trail & Lag Code] ...
+
             out.write(frame)
 
     cap.release()
     out.release()
-
+    
+    # ... [FFMPEG Conversion Code] ...
     # CONVERSION & SUMMARY (Keep your existing code here)
     web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -286,6 +246,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     summary = f"### 🏌️ Wrist Lab Analysis\n**Top of Swing Lag:** {top_stat}\n**Impact Lag:** {impact_stat}\n\n**Note:** Aim for < 90° top and > 165° impact."
     
     return summary, web_tfile.name
+
 
 
 
