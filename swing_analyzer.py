@@ -13,7 +13,6 @@ def analyze_diagnostic_swing(video_path, club_type=None):
     h, w = int(cap.get(4)), int(cap.get(3))
     raw_path = tempfile.NamedTemporaryFile(delete=False, suffix='.avi').name
     out = cv2.VideoWriter(raw_path, cv2.VideoWriter_fourcc(*'XVID'), int(cap.get(5)), (w, h))
-
     with mp_pose.Pose(min_detection_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
@@ -23,15 +22,18 @@ def analyze_diagnostic_swing(video_path, club_type=None):
     return "Diagnostic Complete.", raw_path
 
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
-    """Direct-Sync Anatomy Lab: Angled Plane + Vertical Nudge."""
+    """Perspective-Compensated Anatomy Lab with Iron-Clad Lock."""
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     h_pix = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     w_pix = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
+    # --- THESE MUST STAY NONE UNTIL THE LOCK ---
     frozen_apex = None
-    shoulder_y_lock, hip_y_lock = None, None
+    shoulder_y_lock = None
+    hip_y_lock = None
+    
     wrist_trail = []
     is_downswing = False
     max_h = 1.0
@@ -49,40 +51,40 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
             if results.pose_landmarks:
                 lm = results.pose_landmarks.landmark
                 
-                # Joint Truth (12: R Shoulder, 24: R Hip, 16: R Wrist)
+                # Live Joint Data
                 cur_rs_x, cur_rs_y = int(lm[12].x * w_pix), int(lm[12].y * h_pix)
                 cur_rh_y = int(lm[24].y * h_pix)
                 cur_rw_x, cur_rw_y = int(lm[16].x * w_pix), int(lm[16].y * h_pix)
 
-                # LOCK ON FRAME 1 with SLOPE MATH
-                if frozen_apex is None and lm[12].visibility > 0.8:
-                    # Nudge shoulder anchor UP (Subtracting pixels)
-                    shoulder_y_lock = cur_rs_y - 60 
-                    hip_y_lock = cur_rh_y
+                # --- THE LOCK (CRITICAL FIX) ---
+                # We check IF shoulder_y_lock IS NONE. 
+                # Once it is set, this entire block is skipped forever.
+                if shoulder_y_lock is None and lm[12].visibility > 0.8:
+                    # Apply the "Perspective Lift" once and only once
+                    shoulder_y_lock = cur_rs_y - 140 
+                    hip_y_lock = cur_rh_y - 40
                     
-                    # Calculate Slope from Shoulder to Wrist
                     dx = cur_rw_x - cur_rs_x
                     dy = cur_rw_y - cur_rs_y
                     
                     if dx != 0:
                         slope = dy / dx
-                        # Project Apex forward based on body width
                         body_w = abs(lm[12].x - lm[11].x) * w_pix
                         apex_x = int(cur_rs_x + (body_w * 2.8))
-                        # Project ceiling line from the nudged shoulder height
+                        # Project ceiling from the frozen address height
                         apex_y = int(shoulder_y_lock + (slope * (body_w * 2.8)))
                         frozen_apex = (apex_x, apex_y)
 
-                # DRAWING THE PLANE
-                if frozen_apex:
+                # --- DRAWING (Uses the locked values) ---
+                if frozen_apex is not None:
                     overlay = frame.copy()
-                    pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, shoulder_y_lock], [0, hip_y_lock + 100]], np.int32)
+                    pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, shoulder_y_lock], [0, hip_y_lock + 150]], np.int32)
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
                     cv2.line(frame, frozen_apex, (0, shoulder_y_lock), (0, 0, 0), 2, cv2.LINE_AA)
-                    cv2.line(frame, frozen_apex, (0, hip_y_lock + 100), (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.line(frame, frozen_apex, (0, hip_y_lock + 150), (0, 0, 0), 2, cv2.LINE_AA)
 
-                # YELLOW TRAIL & LAG
+                # Trail & Lag
                 if not is_downswing:
                     if lm[16].y < max_h: max_h = lm[16].y
                     elif lm[16].y > (max_h + 0.05): is_downswing = True
