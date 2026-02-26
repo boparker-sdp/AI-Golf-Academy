@@ -173,6 +173,7 @@ def analyze_wrist_action(video_path):
     backswing_bot_y = None
     forward_top_y = None
     forward_bot_y = None
+    v_ball_pos = None
     
     # 1. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
@@ -200,46 +201,48 @@ def analyze_wrist_action(video_path):
                 p2 = (int(elbow[0] * width), int(elbow[1] * height))
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
-                # --- DYNAMIC SWING WEDGE (Body-Matched) ---
-                # 1. Define the joints we need for the angle
-                # We use 'landmarks' which is already available in your loop
-                shoulder_y_coord = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y
-                hip_y_coord = landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y
-                wrist_conf = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
+                # --- VIRTUAL BALL & IMPACT CONE ---
+                # 1. Capture the 'Virtual Ball' and Plane Heights at address
+                if v_ball_pos is None and wrist_conf > 0.8:
+                    # Virtual Ball: Wrist X-pos, Foot Y-pos
+                    v_ball_x = int(landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x * width)
+                    v_ball_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y * height)
+                    v_ball_pos = (v_ball_x, v_ball_y)
+                    
+                    # Set the "opening" of the cone based on your shoulder and hip
+                    backswing_top_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * height)
+                    forward_bot_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * height)
 
-                # 2. Capture the "Address" height once
-                if backswing_top_y is None and wrist_conf > 0.8:
-                    backswing_top_y = int(shoulder_y_coord * height)
-                    forward_bot_y = int(hip_y_coord * height)
-
-                # 3. Draw the Angled Wedge (The "V" Shape)
-                if backswing_top_y is not None:
+                # 2. Draw the Angled Cone (The Underlay)
+                if v_ball_pos is not None:
                     overlay = frame.copy()
                     
-                    # We create a "V" shape that is narrow at the ball (right) 
-                    # and wide behind the golfer (left)
+                    # Points: [Apex (Ball), Top-Left (Shoulder), Bottom-Left (Hip)]
                     pts = np.array([
-                        [width, backswing_top_y + 20], # Ball Side Top
-                        [width, forward_bot_y - 20],   # Ball Side Bottom
-                        [0, forward_bot_y + 100],      # Behind Side Bottom (Angled Down)
-                        [0, backswing_top_y - 100]     # Behind Side Top (Angled Up)
+                        [v_ball_pos[0], v_ball_pos[1]], # Apex
+                        [0, backswing_top_y - 120],     # Shoulder Plane Ceiling
+                        [0, forward_bot_y + 80]         # Hip Slot Floor
                     ], np.int32)
 
-                    # Fill it with a brighter gray so you can see it
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
-                    cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+                    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
                     
-                    # 4. Neon Boundary Lines (The "Pop" factor)
-                    # Neon Blue for Shoulder Plane
-                    cv2.line(frame, (width, backswing_top_y + 20), (0, backswing_top_y - 100), (255, 255, 0), 3) 
-                    # Neon Green for Hip Slot
-                    cv2.line(frame, (width, forward_bot_y - 20), (0, forward_bot_y + 100), (0, 255, 0), 3)
-
+                    # 3. Neon Boundary Lines (The "Pop")
+                    # Neon Blue: Backswing Plane
+                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) 
+                    # Neon Green: The Slot
+                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)
+                    
                     # Labels
-                    cv2.putText(frame, "PLANE CEILING", (10, backswing_top_y - 110), 
+                    cv2.putText(frame, "PLANE CEILING", (10, backswing_top_y - 130), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-                    cv2.putText(frame, "THE SLOT", (10, forward_bot_y + 130), 
+                    cv2.putText(frame, "THE SLOT", (10, forward_bot_y + 110), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    
+                    # Small white marker for the "Virtual Ball"
+                    cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
+
+                # --- BACKSWING GUIDE RAIL LOGIC ---
 
                 # --- BACKSWING GUIDE RAIL LOGIC ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
@@ -391,6 +394,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
