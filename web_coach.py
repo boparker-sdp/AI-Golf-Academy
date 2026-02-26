@@ -82,22 +82,26 @@ if uploaded_file is not None:
         )
         
         if coords:
-            # 4. UPDATED SCALING MATH
-            # We map the click on the 600px image back to the original video size
+            # 1 & 2. (Already in your code) Get resolutions
             original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            display_width = img_resized.width
+            display_height = img_resized.height
             
-            # Map click from 'img_resized' to 'original'
-            actual_scale_x = original_width / img_resized.width
-            actual_scale_y = original_height / img_resized.height
+            # 3. Calculate the exact multipliers
+            scale_x = original_width / display_width
+            scale_y = original_height / display_height
             
+            # 4. CRITICAL: Map the click to the high-res video coordinates
+            # This is what stops the "four-foot" error!
             ball_pos = (
-                int(coords['x'] * actual_scale_x), 
-                int(coords['y'] * actual_scale_y)
+                int(coords['x'] * scale_x), 
+                int(coords['y'] * scale_y)
             )
             
             st.success(f"✅ Ball locked at {ball_pos}. Ready to analyze!")
 
+            # 5. The Launch Button
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
                 with st.spinner("Analyzing your path and lag..."):
                     summary, video_out = analyze_wrist_action(
@@ -106,6 +110,7 @@ if uploaded_file is not None:
                         start_frame=frame_idx
                     )
                     st.divider()
+                    st.header("📊 Your Wrist Lab Report")
                     st.markdown(summary)
                     st.video(video_out)
                     
@@ -177,5 +182,6 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
