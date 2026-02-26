@@ -229,95 +229,52 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
 
                 # --- VIRTUAL BALL & IMPACT CONE ---
                 # Use the landmarks from the FIRST processed frame to set the cone width
-                if backswing_top_y is None:
-                    # Anchor the 'opening' of the cone to your shoulders and hips
-                    backswing_top_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * height)
-                    forward_bot_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * height)
-                    
-                    # If for some reason ball_coords didn't come through, 
-                    # set a safe fallback so the script doesn't crash
-                    if v_ball_pos is None:
-                        v_ball_pos = (int(width * 0.7), int(height * 0.8))
-
-                # Now draw using the user's CLICK (v_ball_pos)
-                if v_ball_pos is not None:
-                    overlay = frame.copy()
-                    
-                    pts = np.array([
-                        [v_ball_pos[0], v_ball_pos[1]], # Apex (Where you clicked!)
-                        [0, backswing_top_y - 120],     # Shoulder Plane Ceiling
-                        [0, forward_bot_y + 80]         # Hip Slot Floor
-                    ], np.int32)
-
-                    cv2.fillPoly(overlay, [pts], (220, 220, 220))
-                    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    
-                    # Boundary Lines (Neon Blue and Green)
-                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) 
-                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)
-
-                # 2. Draw the Angled Cone (The Underlay)
-                if v_ball_pos is not None:
-                    overlay = frame.copy()
-                    
-                    # Points: [Apex (Ball), Top-Left (Shoulder), Bottom-Left (Hip)]
-                    pts = np.array([
-                        [v_ball_pos[0], v_ball_pos[1]], # Apex
-                        [0, backswing_top_y - 120],     # Shoulder Plane Ceiling
-                        [0, forward_bot_y + 80]         # Hip Slot Floor
-                    ], np.int32)
-
-                    cv2.fillPoly(overlay, [pts], (220, 220, 220))
-                    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    
-                    # 3. Neon Boundary Lines (The "Pop")
-                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) # Neon Blue
-                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)   # Neon Green
-                    
-                    # Bigger, bolder labels
-                    cv2.putText(frame, "PLANE CEILING", (width // 2, backswing_top_y - 150), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 1)
-                    
-                    cv2.putText(frame, "THE SLOT", (width // 2, forward_bot_y + 110), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 1) # Thickness changed to 1
-                    cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
-
-                # --- BACKSWING GUIDE RAIL LOGIC ---
+                # --- WRIST AND ELBOW HEIGHT CALCULATION ---
+                # This must happen first to define the heights used by the cone
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
                 
-                # --- DUAL-CORRIDOR SYSTEM ---
-                # A. Capture heights at address (Calculated once)
                 if backswing_top_y is None and wrist_confidence > 0.8:
-                    # Blue Lane (Backswing): Elbow to Mid-Forearm
+                    # Capture the heights at address once
+                    # Using elbow and wrist to define the vertical boundaries
                     backswing_top_y = int(elbow[1] * height)
-                    backswing_bot_y = int(((wrist[1] + elbow[1]) / 2) * height)
-                    # Green Lane (The Slot): Mid-Forearm to Initial Wrist
-                    forward_top_y = backswing_bot_y
                     forward_bot_y = int(wrist[1] * height)
 
-                # B. Draw the Lanes (Underlay)
-                if backswing_top_y is not None:
+                # --- DRAW THE CALIBRATED CONE ---
+                # Now draw using the user's CLICK (v_ball_pos)
+                if v_ball_pos is not None and backswing_top_y is not None:
                     overlay = frame.copy()
-                    # Blue Lane (Backswing)
-                    cv2.rectangle(overlay, (0, backswing_top_y), (width, backswing_bot_y), (255, 100, 0), -1)
-                    # Green Lane (Forward Slot)
-                    cv2.rectangle(overlay, (0, forward_top_y), (width, forward_bot_y), (0, 255, 0), -1)
-                    cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
                     
-                    # Labels (Doubled in size and thickness for visibility)
-                    cv2.putText(frame, "PLANE CEILING", (20, backswing_top_y - 130), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 3)
-                    
-                    cv2.putText(frame, "THE SLOT", (20, forward_bot_y + 110), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3)
+                    # 1. Create the gray wedge (The Underlay)
+                    pts = np.array([
+                        [v_ball_pos[0], v_ball_pos[1]], # Apex (Ball)
+                        [0, backswing_top_y - 120],     # Shoulder Plane Ceiling
+                        [0, forward_bot_y + 80]         # Hip Slot Floor
+                    ], np.int32)
 
-                # A. Detect Transition
+                    cv2.fillPoly(overlay, [pts], (220, 220, 220))
+                    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+                    
+                    # 2. Draw Sharp Black Boundary Lines
+                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
+                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
+
+                    # 3. Draw Sharp Black Labels (Anti-Aliased for clarity)
+                    cv2.putText(frame, "PLANE CEILING", (width // 2, backswing_top_y - 150), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                    
+                    cv2.putText(frame, "THE SLOT", (width // 2, forward_bot_y + 110), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                    
+                    # Small white dot at the ball position
+                    cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
+
+                # --- TRANSITION DETECTION ---
+                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
                 if not is_downswing:
                     if curr_wrist_y < max_wrist_height:
                         max_wrist_height = curr_wrist_y 
                     elif curr_wrist_y > (max_wrist_height + 0.05):
-                        is_downswing = True 
+                        is_downswing = True
 
                 # B. ONLY add to trail during Backswing
                 if not is_downswing and wrist_confidence > 0.8:
@@ -433,6 +390,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     )
 
     return summary, web_tfile.name
+
 
 
 
