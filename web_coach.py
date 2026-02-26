@@ -1,5 +1,8 @@
 import streamlit as st
-import os
+import cv2
+from PIL import Image
+from streamlit_image_coordinates import streamlit_image_coordinates
+from swing_analyzer import analyze_wrist_action
 
 from ai_coach import vibe_coach, coach_chat
 # Import BOTH functions from swing_analyzer
@@ -45,7 +48,49 @@ if uploaded_file is not None:
     with open(video_path, "wb") as f:
         f.write(uploaded_file.read())
         
-    st.video(video_path, format="video/mp4")    
+    # --- CALIBRATION UI ---
+    st.divider()
+    st.subheader("🎯 Step 1: Set Your Swing Plane")
+    
+    # Load video to get frames
+    cap = cv2.VideoCapture(video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # 1. Slider to find the 'Address' position
+    st.info("Scrub to the exact moment the club is behind the ball at address.")
+    frame_idx = st.slider("Find Address Frame:", 0, total_frames - 1, value=0)
+    
+    # 2. Extract and display that frame for clicking
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+    ret, frame = cap.read()
+    if ret:
+        # Convert to RGB for the picker
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(frame_rgb)
+        
+        st.write("Now, **click directly on the golf ball** in the image below:")
+        # The interactive coordinate picker
+        coords = streamlit_image_coordinates(img, key="ball_picker")
+        
+        if coords:
+            # Scale coordinates if necessary (Streamlit sometimes resizes images)
+            ball_pos = (coords['x'], coords['y'])
+            st.success(f"✅ Ball locked at {ball_pos}. Ready to analyze!")
+
+            # --- ANALYSIS TRIGGER ---
+            if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
+                with st.spinner("Analyzing your path and lag..."):
+                    # Pass the clicked coords and the selected start frame
+                    summary, video_out = analyze_wrist_action(
+                        video_path, 
+                        ball_coords=ball_pos, 
+                        start_frame=frame_idx
+                    )
+                    
+                    st.divider()
+                    st.markdown(summary)
+                    st.video(video_out)
+    cap.release()   
     
     # --- BALL STRIKING CONTEXT (V2) ---
     st.markdown("### Tell the Coach About the Shot")
@@ -183,6 +228,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
