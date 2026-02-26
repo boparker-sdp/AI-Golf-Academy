@@ -48,39 +48,39 @@ if uploaded_file is not None:
     with open(video_path, "wb") as f:
         f.write(uploaded_file.read())
         
-    # --- CALIBRATION UI ---
+    # --- STEP 1: CALIBRATION UI ---
     st.divider()
     st.subheader("🎯 Step 1: Set Your Swing Plane")
+    st.info("Scrub to the exact moment the club is behind the ball at address, then click the ball.")
     
-    # Load video to get frames
+    # Load video to get frames for the scrubber
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
-    # 1. Slider to find the 'Address' position
-    st.info("Scrub to the exact moment the club is behind the ball at address.")
+    # 1. Slider to find the 'Address' moment
     frame_idx = st.slider("Find Address Frame:", 0, total_frames - 1, value=0)
     
-    # 2. Extract and display that frame for clicking
+    # 2. Extract and display that specific frame for the clicker
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
     ret, frame = cap.read()
+    
     if ret:
-        # Convert to RGB for the picker
+        # Convert BGR (OpenCV) to RGB (Streamlit/PIL)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
         
-        st.write("Now, **click directly on the golf ball** in the image below:")
-        # The interactive coordinate picker
+        # 3. The Interactive Coordinate Picker
+        # This displays the image and waits for a click
         coords = streamlit_image_coordinates(img, key="ball_picker")
         
         if coords:
-            # Scale coordinates if necessary (Streamlit sometimes resizes images)
             ball_pos = (coords['x'], coords['y'])
             st.success(f"✅ Ball locked at {ball_pos}. Ready to analyze!")
 
-            # --- ANALYSIS TRIGGER ---
+            # --- STEP 2: RUN ANALYSIS ---
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
                 with st.spinner("Analyzing your path and lag..."):
-                    # Pass the clicked coords and the selected start frame
+                    # We pass the CLICK and the START FRAME to the backend
                     summary, video_out = analyze_wrist_action(
                         video_path, 
                         ball_coords=ball_pos, 
@@ -88,9 +88,11 @@ if uploaded_file is not None:
                     )
                     
                     st.divider()
+                    st.header("📊 Your Wrist Lab Report")
                     st.markdown(summary)
                     st.video(video_out)
-    cap.release()   
+    
+    cap.release()
     
     # --- BALL STRIKING CONTEXT (V2) ---
     st.markdown("### Tell the Coach About the Shot")
@@ -196,31 +198,6 @@ if uploaded_file is not None:
             except Exception as e:
                 st.error(f"Error processing X-Ray: {e}")
 
-    # --- 3. WRIST LAB ---
-    if st.button("⌚ Run Wrist Lab", use_container_width=True):
-        with st.spinner("Analyzing Wrist Release..."):
-            try:
-                # Same tuple pattern for the wrist lab
-                wrist_report, wrist_video_path = analyze_wrist_action(video_path)
-                
-                with open(wrist_video_path, "rb") as video_file:
-                    video_bytes = video_file.read()
-                
-                st.video(video_bytes, format="video/mp4")
-                
-                st.info(wrist_report)
-                
-                st.download_button(
-                    label="💾 Save Wrist Video", 
-                    data=video_bytes, 
-                    file_name="Wrist_Lab_Analysis.mp4", 
-                    mime="video/mp4", 
-                    key="save_wrist",
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Error in Wrist Lab: {e}")
-
     # --- CLEAR SCREEN ---
     st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
@@ -228,6 +205,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
