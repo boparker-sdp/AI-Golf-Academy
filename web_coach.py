@@ -67,11 +67,10 @@ if uploaded_file is not None:
         
         st.write("Now, **click directly on the golf ball** in the image below:")
         
-        # use_container_width=False ensures we don't crop the ball at the bottom
+        # We pass the img directly. If it still fails, we'll try passing the raw RGB array.
         coords = streamlit_image_coordinates(
-            img, 
-            key="ball_picker",
-            use_container_width=False
+            img,
+            key="ball_picker"
         )
         
         if coords:
@@ -169,3 +168,4 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
