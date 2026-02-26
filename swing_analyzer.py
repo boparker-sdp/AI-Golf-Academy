@@ -208,18 +208,22 @@ def analyze_wrist_action(video_path):
                 
                 # 1. Capture the 'Virtual Ball' (Apex) at address
                 if v_ball_pos is None and wrist_confidence > 0.8:
-                    # Capture the wrist position
-                    wrist_x = int(landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x * width)
+                    # Find the midpoint between your feet (the center of stance)
+                    r_foot_x = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].x
+                    l_foot_x = landmarks[mp_pose.PoseLandmark.LEFT_FOOT_INDEX].x
+                    stance_center_x = (r_foot_x + l_foot_x) / 2
                     
-                    # OFFSET: We move the apex 15% of the frame width forward 
-                    # to reach the real clubhead/ball position
-                    v_ball_x = wrist_x + int(width * 0.15) 
+                    # MOVE THE BALL TOWARD THE TARGET:
+                    # We shift the apex forward (usually left on screen) toward the front foot.
+                    # Adjust '0.05' to '0.1' if it needs to move even further forward.
+                    v_ball_x_norm = stance_center_x - 0.08  
                     
-                    # Use the foot level for the ground height
+                    # Convert to pixel coordinates
+                    v_ball_x = int(v_ball_x_norm * width)
                     v_ball_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y * height)
                     v_ball_pos = (v_ball_x, v_ball_y)
                     
-                    # Standard plane heights
+                    # Standard body-matched plane heights
                     backswing_top_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * height)
                     forward_bot_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * height)
 
@@ -400,6 +404,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
