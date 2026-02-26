@@ -153,72 +153,51 @@ def analyze_diagnostic_swing(video_path, club_type=None):
     return feedback, web_tfile.name
 
 # 1. Update the signature to accept the new data from web_coach
-def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
-    # --- 1. INITIALIZATION ---
-    cap = cv2.VideoCapture(video_path)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-    
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    
-    # Anatomy Anchors (Set at Address)
-    anatomy_apex = None
-    shoulder_anchor_y = None
-    hip_anchor_y = None
-    
-    # State Variables
-    is_downswing = False
-    max_wrist_height = 1.0
-    lag_at_top, lag_at_impact = None, None
-    impact_locked = False
-
-    raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(raw_tfile.name, fourcc, fps, (width, height))
-
-    with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7) as pose:
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret: break
-            
-            # Get exact pixel truth for this specific frame
-            h_pix, w_pix, _ = frame.shape
-            results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            
-            if results.pose_landmarks:
+if results.pose_landmarks:
+                h_pix, w_pix, _ = frame.shape
                 lm = results.pose_landmarks.landmark
-                rs = lm[mp_pose.PoseLandmark.RIGHT_SHOULDER]
-                rh = lm[mp_pose.PoseLandmark.RIGHT_HIP]
+                
+                # 1. LIVE ANCHORS (Just like your X-ray code)
+                # These move with you to prevent the "misalignment"
+                curr_rs_x = int(lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].x * w_pix)
+                curr_rs_y = int(lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * h_pix)
+                curr_rh_y = int(lm[mp_pose.PoseLandmark.RIGHT_HIP].y * h_pix)
+                curr_rw = (int(lm[mp_pose.PoseLandmark.RIGHT_WRIST].x * w_pix), 
+                           int(lm[mp_pose.PoseLandmark.RIGHT_WRIST].y * h_pix))
 
-                # --- 2. LOCK ANATOMY AT ADDRESS ---
-                if anatomy_apex is None and rs.visibility > 0.7:
-                    # Capture exact pixel Y-coordinates
-                    shoulder_anchor_y = int(rs.y * h_pix)
-                    hip_anchor_y = int(rh.y * h_pix)
-                    
-                    # Project Apex: Move forward from shoulder based on body width
-                    body_width = abs(rs.x - lm[mp_pose.PoseLandmark.LEFT_SHOULDER].x) * w_pix
-                    apex_x = int((rs.x * w_pix) + (body_width * 2.0)) 
-                    apex_y = int(hip_anchor_y + (h_pix * 0.15)) 
-                    
-                    anatomy_apex = (apex_x, apex_y)
+                # 2. LOCK THE "IDEAL" PLANE (Only once at address)
+                if anatomy_apex is None and lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].visibility > 0.7:
+                    shoulder_anchor_y = curr_rs_y
+                    hip_anchor_y = curr_rh_y
+                    # Project the Apex forward from your current shoulder
+                    anatomy_apex_x = int(curr_rs_x + (w_pix * 0.35)) 
+                    anatomy_apex_y = int(hip_anchor_y + (h_pix * 0.10))
+                    anatomy_apex = (anatomy_apex_x, anatomy_apex_y)
 
-                # --- 3. DRAW THE ANATOMY CONE (Only if anchored) ---
+                # 3. DRAW THE CONE (Anchored to LIVE Body X, but STATIC Heights)
                 if anatomy_apex is not None:
                     overlay = frame.copy()
+                    # We use the STATIC apex but anchor the left side to X=0
                     pts = np.array([
                         [anatomy_apex[0], anatomy_apex[1]], 
                         [0, shoulder_anchor_y],           
-                        [0, hip_anchor_y + 80]            
+                        [0, hip_anchor_y + 100]            
                     ], np.int32)
                     
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    
-                    # Boundary lines
                     cv2.line(frame, anatomy_apex, (0, shoulder_anchor_y), (0, 0, 0), 2, cv2.LINE_AA)
-                    cv2.line(frame, anatomy_apex, (0, hip_anchor_y + 80), (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.line(frame, anatomy_apex, (0, hip_anchor_y + 100), (0, 0, 0), 2, cv2.LINE_AA)
+
+                # 4. RESTORE YELLOW BACKSWING TRAIL
+                # Only track during the backswing phase
+                if not is_downswing:
+                    if not wrist_trail or np.linalg.norm(np.array(curr_rw) - np.array(wrist_trail[-1])) > 5:
+                        wrist_trail.append(curr_rw)
+                
+                if len(wrist_trail) > 1:
+                    for i in range(1, len(wrist_trail)):
+                        cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 3, cv2.LINE_AA)
                     
                     # Labels using the anchored Y-coordinates
                     cv2.putText(frame, "PLANE CEILING", (50, shoulder_anchor_y - 20), 
@@ -241,6 +220,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
 
     summary = "### 🏌️ Anatomy Plane Analysis\nCone anchored to shoulder and hip. Use this to track if you dip (Fat) or lift (Thin) during the strike."
     return summary, web_tfile.name
+
 
 
 
