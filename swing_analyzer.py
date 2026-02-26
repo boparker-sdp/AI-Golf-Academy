@@ -203,7 +203,10 @@ def analyze_wrist_action(video_path):
 
                 # --- VIRTUAL BALL & IMPACT CONE ---
                 # 1. Capture the 'Virtual Ball' and Plane Heights at address
-                if v_ball_pos is None and wrist_conf > 0.8:
+                # We use 'wrist_confidence' which we define right here
+                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
+                
+                if v_ball_pos is None and wrist_confidence > 0.8:
                     # Virtual Ball: Wrist X-pos, Foot Y-pos
                     v_ball_x = int(landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x * width)
                     v_ball_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y * height)
@@ -228,10 +231,8 @@ def analyze_wrist_action(video_path):
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
                     
                     # 3. Neon Boundary Lines (The "Pop")
-                    # Neon Blue: Backswing Plane
-                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) 
-                    # Neon Green: The Slot
-                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)
+                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) # Neon Blue
+                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)   # Neon Green
                     
                     # Labels
                     cv2.putText(frame, "PLANE CEILING", (10, backswing_top_y - 130), 
@@ -239,10 +240,7 @@ def analyze_wrist_action(video_path):
                     cv2.putText(frame, "THE SLOT", (10, forward_bot_y + 110), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
                     
-                    # Small white marker for the "Virtual Ball"
                     cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
-
-                # --- BACKSWING GUIDE RAIL LOGIC ---
 
                 # --- BACKSWING GUIDE RAIL LOGIC ---
                 wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
@@ -267,11 +265,12 @@ def analyze_wrist_action(video_path):
                     cv2.rectangle(overlay, (0, forward_top_y), (width, forward_bot_y), (0, 255, 0), -1)
                     cv2.addWeighted(overlay, 0.15, frame, 0.85, 0, frame)
                     
-                    # Labels for clarity
-                    cv2.putText(frame, "BACKSWING LANE", (10, backswing_top_y + 15), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 100, 0), 1)
-                    cv2.putText(frame, "THE SLOT (FORWARD)", (10, forward_bot_y - 5), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+                    # Labels (Doubled in size and thickness for visibility)
+                    cv2.putText(frame, "PLANE CEILING", (20, backswing_top_y - 130), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 3)
+                    
+                    cv2.putText(frame, "THE SLOT", (20, forward_bot_y + 110), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3)
 
                 # A. Detect Transition
                 if not is_downswing:
@@ -394,6 +393,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
