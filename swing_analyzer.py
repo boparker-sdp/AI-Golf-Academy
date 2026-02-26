@@ -208,22 +208,26 @@ def analyze_wrist_action(video_path):
                 
                 # 1. Capture the 'Virtual Ball' (Apex) at address
                 if v_ball_pos is None and wrist_confidence > 0.8:
-                    # Find the midpoint between your feet (the center of stance)
+                    # Find the stance midpoint
                     r_foot_x = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].x
                     l_foot_x = landmarks[mp_pose.PoseLandmark.LEFT_FOOT_INDEX].x
                     stance_center_x = (r_foot_x + l_foot_x) / 2
                     
-                    # MOVE THE BALL TOWARD THE TARGET:
-                    # We shift the apex forward (usually left on screen) toward the front foot.
-                    # Adjust '0.05' to '0.1' if it needs to move even further forward.
-                    v_ball_x_norm = stance_center_x - 0.08  
+                    # TARGET-SIDE SHIFT: 
+                    # We ADD to move it toward the target (right side of your video).
+                    # '0.12' should put it right near that front foot line.
+                    v_ball_x_norm = stance_center_x + 0.12  
                     
-                    # Convert to pixel coordinates
+                    # DEPTH NUDGE:
+                    # Raising the ball Y slightly (subtracting pixels) helps 
+                    # the cone match the 'waist-to-shoulder' plane better.
+                    foot_y = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y
+                    v_ball_y = int((foot_y - 0.05) * height) 
+
                     v_ball_x = int(v_ball_x_norm * width)
-                    v_ball_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y * height)
                     v_ball_pos = (v_ball_x, v_ball_y)
                     
-                    # Standard body-matched plane heights
+                    # Body-matched plane heights
                     backswing_top_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * height)
                     forward_bot_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * height)
 
@@ -404,6 +408,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
