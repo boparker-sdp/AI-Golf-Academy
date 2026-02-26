@@ -107,39 +107,30 @@ if uploaded_file is not None:
             
             st.success(f"✅ Target Locked at {ball_pos}")
 
-            if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
-                with st.spinner("Analyzing your path and lag..."):
-                    summary, video_out = analyze_wrist_action(
-                        video_path, 
-                        ball_coords=ball_pos, 
-                        start_frame=frame_idx
-                    )
-                    st.divider()
-                    st.header("📊 Your Wrist Lab Report")
-                    st.markdown(summary)
-                    st.video(video_out)
-
             # 5. The Launch Button
-            if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
+            if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True, key="calibrated_run"):
                 with st.spinner("Analyzing your path and lag..."):
-                    summary, video_out = analyze_wrist_action(
-                        video_path, 
-                        ball_coords=ball_pos, 
-                        start_frame=frame_idx
+                # All these lines must line up vertically
+                summary, video_out = analyze_wrist_action(
+                    video_path, 
+                    ball_coords=ball_pos, 
+                    start_frame=frame_idx
+                )
+                
+                st.divider()
+                st.header("📊 Your Wrist Lab Report")
+                st.markdown(summary)
+                st.video(video_out)
+
+                # FIX: Bring 'with open' back to the left so it matches st.video
+                with open(video_out, "rb") as v_file:
+                    st.download_button(
+                        "💾 Save Wrist Lab Video",
+                        data=v_file.read(),
+                        file_name="Wrist_Lab_Analysis.mp4",
+                        mime="video/mp4",
+                        use_container_width=True
                     )
-                    st.divider()
-                    st.header("📊 Your Wrist Lab Report")
-                    st.markdown(summary)
-                    st.video(video_out)
-                    
-                    with open(video_out, "rb") as v_file:
-                        st.download_button(
-                            "💾 Save Wrist Lab Video",
-                            data=v_file.read(),
-                            file_name="Wrist_Lab_Analysis.mp4",
-                            mime="video/mp4",
-                            use_container_width=True
-                        )
     cap.release()
 
     # --- OTHER AI COACH FEATURES ---
@@ -200,6 +191,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
