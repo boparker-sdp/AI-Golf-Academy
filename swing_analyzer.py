@@ -18,21 +18,20 @@ def analyze_diagnostic_swing(video_path, club_type=None):
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
-            out.write(frame) # Stability overlays omitted for brevity
+            out.write(frame)
     cap.release(); out.release()
     return "Diagnostic Complete.", raw_path
 
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
-    """Direct-Sync Anatomy Lab: No translation, just direct joint mapping."""
+    """Direct-Sync Anatomy Lab: Angled Plane + Vertical Nudge."""
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     h_pix = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     w_pix = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
-    # Persistent State
     frozen_apex = None
-    shoulder_y, hip_y = None, None
+    shoulder_y_lock, hip_y_lock = None, None
     wrist_trail = []
     is_downswing = False
     max_h = 1.0
@@ -50,34 +49,44 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
             if results.pose_landmarks:
                 lm = results.pose_landmarks.landmark
                 
-                # --- THE TRUTH MAP (Direct Indexing) ---
-                # Index 12: Right Shoulder | 24: Right Hip | 16: Right Wrist
-                cur_rs_y = int(lm[12].y * h_pix)
+                # Joint Truth (12: R Shoulder, 24: R Hip, 16: R Wrist)
+                cur_rs_x, cur_rs_y = int(lm[12].x * w_pix), int(lm[12].y * h_pix)
                 cur_rh_y = int(lm[24].y * h_pix)
-                cur_rw = (int(lm[16].x * w_pix), int(lm[16].y * h_pix))
+                cur_rw_x, cur_rw_y = int(lm[16].x * w_pix), int(lm[16].y * h_pix)
 
-                # LOCK ON FRAME 1
+                # LOCK ON FRAME 1 with SLOPE MATH
                 if frozen_apex is None and lm[12].visibility > 0.8:
-                    shoulder_y = cur_rs_y
-                    hip_y = cur_rh_y
-                    # Define Ball Apex relative to the shoulder
-                    frozen_apex = (int(lm[12].x * w_pix + (w_pix * 0.35)), int(hip_y + (h_pix * 0.1)))
+                    # Nudge shoulder anchor UP (Subtracting pixels)
+                    shoulder_y_lock = cur_rs_y - 60 
+                    hip_y_lock = cur_rh_y
+                    
+                    # Calculate Slope from Shoulder to Wrist
+                    dx = cur_rw_x - cur_rs_x
+                    dy = cur_rw_y - cur_rs_y
+                    
+                    if dx != 0:
+                        slope = dy / dx
+                        # Project Apex forward based on body width
+                        body_w = abs(lm[12].x - lm[11].x) * w_pix
+                        apex_x = int(cur_rs_x + (body_w * 2.8))
+                        # Project ceiling line from the nudged shoulder height
+                        apex_y = int(shoulder_y_lock + (slope * (body_w * 2.8)))
+                        frozen_apex = (apex_x, apex_y)
 
-                # DRAWING THE PLANE (The Einstein Fix)
+                # DRAWING THE PLANE
                 if frozen_apex:
                     overlay = frame.copy()
-                    # We subtract 40 pixels from shoulder_y to hit the top of the muscle
-                    pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, shoulder_y - 40], [0, hip_y + 100]], np.int32)
+                    pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, shoulder_y_lock], [0, hip_y_lock + 100]], np.int32)
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    cv2.line(frame, frozen_apex, (0, shoulder_y - 40), (0, 0, 0), 2)
-                    cv2.line(frame, frozen_apex, (0, hip_y + 100), (0, 0, 0), 2)
+                    cv2.line(frame, frozen_apex, (0, shoulder_y_lock), (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.line(frame, frozen_apex, (0, hip_y_lock + 100), (0, 0, 0), 2, cv2.LINE_AA)
 
                 # YELLOW TRAIL & LAG
                 if not is_downswing:
                     if lm[16].y < max_h: max_h = lm[16].y
                     elif lm[16].y > (max_h + 0.05): is_downswing = True
-                    wrist_trail.append(cur_rw)
+                    wrist_trail.append((cur_rw_x, cur_rw_y))
                 
                 for i in range(1, len(wrist_trail)):
                     cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 3, cv2.LINE_AA)
