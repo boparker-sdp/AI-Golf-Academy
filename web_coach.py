@@ -79,22 +79,22 @@ if uploaded_file is not None:
             img_resized,
             key="ball_picker"
         )
-        
         if coords:
-            # 1. Get raw dimensions
+            # 1. Get exact video dimensions from the 'cap' object
             raw_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             raw_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            # 2. DETECT ROTATION: The fix for iPhone portrait drift
-            if img.height > img.width and raw_w > raw_h:
-                orig_w, orig_h = raw_h, raw_w
+            # 2. Force the correct orientation based on the IMAGE you see
+            # If the image is tall, the video must be tall.
+            if img.height > img.width:
+                orig_w, orig_h = min(raw_w, raw_h), max(raw_w, raw_h)
             else:
-                orig_w, orig_h = raw_w, raw_h
+                orig_w, orig_h = max(raw_w, raw_h), min(raw_w, raw_h)
             
-            # 3. Use the resized image size for accurate scaling
+            # 3. Get the exact size of the image you clicked (img_resized)
             disp_w, disp_h = img_resized.size
             
-            # 4. Precise Mapping
+            # 4. The Math
             scale_x = orig_w / disp_w
             scale_y = orig_h / disp_h
             
@@ -103,9 +103,11 @@ if uploaded_file is not None:
                 int(round(coords['y'] * scale_y))
             )
             
+            # DIAGNOSTIC: This helps us see if the math is lying to us
+            # st.write(f"Debug: Video {orig_w}x{orig_h} | Display {disp_w}x{disp_h} | Click {coords}")
+            
             st.success(f"✅ Target Locked at {ball_pos}")
 
-            # 5. The Launch Button (Now perfectly aligned)
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True, key="calibrated_run"):
                 with st.spinner("Analyzing your path and lag..."):
                     summary, video_out = analyze_wrist_action(
@@ -116,8 +118,7 @@ if uploaded_file is not None:
                     st.divider()
                     st.markdown(summary)
                     st.video(video_out)
-
-                    # FIXED: These must be tucked INSIDE the 'if st.button' block
+                    
                     with open(video_out, "rb") as v_file:
                         st.download_button(
                             "💾 Save Wrist Lab Video",
@@ -126,7 +127,7 @@ if uploaded_file is not None:
                             mime="video/mp4",
                             use_container_width=True
                         )
-
+ 
     # 6. Release the video capture (Back at the 'if ret' level)
     cap.release()
 
@@ -188,6 +189,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
