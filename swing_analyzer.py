@@ -7,7 +7,51 @@ import os
 
 mp_pose = mp.solutions.pose
 
+def analyze_diagnostic_swing(video_path, club_type=None):
+    """General stability scan for Head and Hips to diagnose fat/thin shots."""
+    cap = cv2.VideoCapture(video_path)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+    raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
+    out = cv2.VideoWriter(raw_tfile.name, cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
+
+    address_head_y = None
+    address_hip_x = None
+    head_status = "STABLE"
+    hip_status = "STABLE"
+    
+    with mp_pose.Pose(min_detection_confidence=0.5) as pose:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret: break
+            results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            if results.pose_landmarks:
+                lm = results.pose_landmarks.landmark
+                if address_head_y is None:
+                    address_head_y = lm[0].y
+                    address_hip_x = (lm[23].x + lm[24].x) / 2
+
+                curr_head_y = lm[0].y
+                if curr_head_y > address_head_y + 0.03: head_status = "DIPPING"
+                elif curr_head_y < address_head_y - 0.03: head_status = "LIFTING"
+
+                curr_hip_x = (lm[23].x + lm[24].x) / 2
+                if abs(curr_hip_x - address_hip_x) > 0.05: hip_status = "SWAYING"
+
+                cv2.rectangle(frame, (10, 10), (250, 90), (0, 0, 0), -1)
+                cv2.putText(frame, f"HEAD: {head_status}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                cv2.putText(frame, f"HIPS: {hip_status}", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            out.write(frame)
+
+    cap.release(); out.release()
+    web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_tfile.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return "Diagnostic Scan Complete.", web_tfile.name
+
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
+    """Pro-Calibrated Anatomy Lab: Higher anchors and projected intersection."""
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     h_pix = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -15,9 +59,8 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     frozen_apex = None
-    shoulder_y_lock = None
-    hip_y_lock = None
-    confidence_frames = 0 # Wait for a stable stance
+    shoulder_y_lock, hip_y_lock = None, None
+    confidence_frames = 0
     
     wrist_trail = []
     is_downswing = False
@@ -31,55 +74,40 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
-            
             results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             if results.pose_landmarks:
                 lm = results.pose_landmarks.landmark
                 
-                # Live Data
                 cur_rs_x, cur_rs_y = int(lm[12].x * w_pix), int(lm[12].y * h_pix)
                 cur_rh_y = int(lm[24].y * h_pix)
                 cur_rw_x, cur_rw_y = int(lm[16].x * w_pix), int(lm[16].y * h_pix)
 
-                # --- THE INTELLIGENT LOCK ---
+                # THE LOCK: Wait for 10 stable frames to ensure address position
                 if shoulder_y_lock is None and lm[12].visibility > 0.9:
                     confidence_frames += 1
-                    if confidence_frames > 10: # Wait for ~1/3 of a second of stability
-                        # 1. Higher Anchors: Moving to the actual shoulder top and high hip
+                    if confidence_frames > 10:
                         shoulder_y_lock = cur_rs_y - 180 
-                        hip_y_lock = cur_rh_y - 80 # Lift hip anchor significantly
+                        hip_y_lock = cur_rh_y - 80 
                         
-                        # 2. Decoupled Slopes
                         dx = cur_rw_x - cur_rs_x
                         dy = cur_rw_y - cur_rs_y
-                        
                         if dx != 0:
                             arm_slope = dy / dx
                             body_w = abs(lm[12].x - lm[11].x) * w_pix
-                            
-                            # APEX: Project the intersection further out (3.5 body widths)
-                            # so the lines don't cross too close to the body
+                            # APEX: Move intersection 3.5 body widths forward
                             apex_x = int(cur_rs_x + (body_w * 3.5))
                             apex_y = int(shoulder_y_lock + (arm_slope * (body_w * 3.5)))
                             frozen_apex = (apex_x, apex_y)
 
-                # --- DRAWING THE PLANE ---
                 if frozen_apex is not None:
                     overlay = frame.copy()
-                    # Use the 'frozen_apex' for the top line, 
-                    # but a flatter projection for the bottom line
-                    bottom_line_exit_y = hip_y_lock + 100 
-                    
+                    bottom_line_exit_y = hip_y_lock + 120 
                     pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, shoulder_y_lock], [0, bottom_line_exit_y]], np.int32)
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    
-                    # Top line follows arm angle to the Apex
                     cv2.line(frame, frozen_apex, (0, shoulder_y_lock), (0, 0, 0), 2, cv2.LINE_AA)
-                    # Bottom line creates the 'Slot' (Projected flatter)
                     cv2.line(frame, frozen_apex, (0, bottom_line_exit_y), (0, 0, 0), 2, cv2.LINE_AA)
 
-                # Trail & Lag Math (Keep existing working logic)
                 if not is_downswing:
                     if lm[16].y < max_h: max_h = lm[16].y
                     elif lm[16].y > (max_h + 0.05): is_downswing = True
@@ -96,6 +124,6 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
             out.write(frame)
 
     cap.release(); out.release()
-    web_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-    subprocess.run(['ffmpeg', '-y', '-i', raw_path, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_path])
-    return f"### 🏌️ Anatomy Plane Analysis\nTop Lag: {lag_top}° | Impact Lag: {lag_impact}°", web_path
+    web_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    subprocess.run(['ffmpeg', '-y', '-i', raw_path, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_path.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return f"### 🏌️ Wrist Lab Analysis\nTop Lag: {lag_top}° | Impact Lag: {lag_impact}°", web_path.name
