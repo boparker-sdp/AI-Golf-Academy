@@ -82,25 +82,42 @@ if uploaded_file is not None:
         )
         
         if coords:
-            # 1. Pull dimensions from the original video capture
-            orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            # 1. Get raw dimensions
+            raw_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            raw_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            # 2. Use the Image Object size (this is the key to accuracy)
+            # 2. DETECT ROTATION: If height > width but raw says otherwise, swap them
+            # This fixes the '4-foot drift' on iPhone portrait videos
+            if img.height > img.width and raw_w > raw_h:
+                orig_w, orig_h = raw_h, raw_w
+            else:
+                orig_w, orig_h = raw_w, raw_h
+            
+            # 3. Use the Image Object size for scaling
             disp_w, disp_h = img_resized.size
             
-            # 3. Calculate Scale with Float Precision
+            # 4. Precise Mapping
             scale_x = orig_w / disp_w
             scale_y = orig_h / disp_h
             
-            # 4. Final Position with Rounding
-            # This ensures we don't 'drift' by a few pixels which turns into 4 feet
             ball_pos = (
                 int(round(coords['x'] * scale_x)), 
                 int(round(coords['y'] * scale_y))
             )
             
-            st.success(f"✅ Target Locked: {ball_pos}")
+            st.success(f"✅ Target Locked at {ball_pos}")
+
+            if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
+                with st.spinner("Analyzing your path and lag..."):
+                    summary, video_out = analyze_wrist_action(
+                        video_path, 
+                        ball_coords=ball_pos, 
+                        start_frame=frame_idx
+                    )
+                    st.divider()
+                    st.header("📊 Your Wrist Lab Report")
+                    st.markdown(summary)
+                    st.video(video_out)
 
             # 5. The Launch Button
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
@@ -183,6 +200,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
