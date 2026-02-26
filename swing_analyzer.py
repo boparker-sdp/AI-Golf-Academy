@@ -240,29 +240,35 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                     forward_bot_y = int(wrist[1] * height)
 
                 # --- DRAW THE CALIBRATED CONE ---
-                # Now draw using the user's CLICK (v_ball_pos)
-                if v_ball_pos is not None and backswing_top_y is not None:
+                if v_ball_pos is not None:
+                    # SAFETY: If the pose tracker hasn't set these yet, 
+                    # we provide a default based on the ball position
+                    if backswing_top_y is None:
+                        backswing_top_y = int(v_ball_pos[1] * 0.7) # 30% above the ball
+                    if forward_bot_y is None:
+                        forward_bot_y = int(v_ball_pos[1] * 1.1) # 10% below the ball
+
                     overlay = frame.copy()
-                    
-                    # 1. Create the gray wedge (The Underlay)
+            
+                    # Points: [Apex (Ball), Top-Left (Shoulder), Bottom-Left (Hip)]
+                    # We use 0 for X to make the cone fan out to the left side of the screen
                     pts = np.array([
-                        [v_ball_pos[0], v_ball_pos[1]], # Apex (Ball)
-                        [0, backswing_top_y - 120],     # Shoulder Plane Ceiling
-                        [0, forward_bot_y + 80]         # Hip Slot Floor
+                        [v_ball_pos[0], v_ball_pos[1]], 
+                        [0, backswing_top_y - 120],     
+                        [0, forward_bot_y + 80]         
                     ], np.int32)
 
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    
-                    # 2. Draw Sharp Black Boundary Lines
-                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
-                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
+            
+                    # Draw the Boundary Lines in Black
+                    cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
+                    cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
 
-                    # 3. Draw Sharp Black Labels (Anti-Aliased for clarity)
-                    cv2.putText(frame, "PLANE CEILING", (width // 2, backswing_top_y - 150), 
+                    # Labels
+                    cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                    
-                    cv2.putText(frame, "THE SLOT", (width // 2, forward_bot_y + 110), 
+                    cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
                     
                     # Small white dot at the ball position
@@ -390,6 +396,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     )
 
     return summary, web_tfile.name
+
 
 
 
