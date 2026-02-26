@@ -62,58 +62,52 @@ if uploaded_file is not None:
     ret, frame = cap.read()
     
     if ret:
-        # 1. Convert BGR to RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
         
-        # 2. MANUALLY RESIZE for the UI to prevent cropping
         max_ui_height = 600
         scale_ratio = max_ui_height / img.height
         new_width = int(img.width * scale_ratio)
         img_resized = img.resize((new_width, max_ui_height))
         
-        st.write("Now, **click directly on the golf ball** (Full frame shown below):")
+        st.write("Now, **click directly on the golf ball**:")
         
-        # 3. The Picker (using the resized image)
         coords = streamlit_image_coordinates(
             img_resized,
             key="ball_picker"
         )
+        
         if coords:
-            # 1. Get raw dimensions
+            # --- HIGH-RES SCALING MATH ---
             raw_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             raw_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            # 2. Identify the true "Big" dimensions
-            # iPhone videos are usually 1080x1920 or 2160x3840
             video_w = min(raw_w, raw_h)
             video_h = max(raw_w, raw_h)
             
-            # 3. Identify the "Small" dimensions (What you clicked on)
-            # This MUST match the max_ui_height = 600 we set earlier
             display_h = 600 
-            display_w = new_width # This was calculated in the resize step
+            display_w = new_width 
             
-            # 4. Calculate the Multipliers
-            # This is the "Stretcher" that moves the ball from 900 to 1700
             ratio_h = video_h / display_h
             ratio_w = video_w / display_w
             
-            # 5. Apply the Stretch
             real_x = int(round(coords['x'] * ratio_w))
             real_y = int(round(coords['y'] * ratio_h))
             ball_pos = (real_x, real_y)
             
             st.success(f"🎯 Ball calibrated to high-res: {ball_pos}")
 
+            # --- THE LAUNCH BUTTON ---
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True, key="calibrated_run"):
-                with st.spinner("Analyzing..."):
+                with st.spinner("Analyzing your path and lag..."):
                     summary, video_out = analyze_wrist_action(
                         video_path, 
                         ball_coords=ball_pos, 
                         start_frame=frame_idx
                     )
                     st.divider()
+                    st.header("📊 Your Wrist Lab Report")
+                    st.markdown(summary)
                     st.video(video_out)
        
                     with open(video_out, "rb") as v_file:
@@ -124,8 +118,7 @@ if uploaded_file is not None:
                             mime="video/mp4",
                             use_container_width=True
                         )
- 
-    # 6. Release the video capture (Back at the 'if ret' level)
+
     cap.release()
 
     # --- OTHER AI COACH FEATURES ---
@@ -186,12 +179,3 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
-
-
-
-
-
-
-
-
-
