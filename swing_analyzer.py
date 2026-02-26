@@ -154,59 +154,26 @@ def analyze_diagnostic_swing(video_path, club_type=None):
 
 # 1. Update the signature to accept the new data from web_coach
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
-    # --- AT THE TOP OF YOUR FUNCTION (outside the loop) ---
-    # These variables must start as None so they can be "locked in" later
-    backswing_top_y = None
-    forward_bot_y = None
-    v_ball_pos = ball_coords # Use the coordinates passed from web_coach.py
+    # 1. INITIALIZATION & VIDEO SETUP
+    v_ball_pos = ball_coords 
     cap = cv2.VideoCapture(video_path)
-    
-    # 2. CRITICAL: Jump the video to the frame the user selected
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
-    # --- PERSISTENT DATA ---
-    lag_angles = []
-    wrist_trail = []
-    max_lag_sharpness = 180.0
-    
-    # NEW STATE VARIABLES
+    # 2. PERSISTENT STATE (Defined ONLY ONCE)
+    backswing_top_y = None
+    forward_bot_y = None
     is_downswing = False
-    max_wrist_height = 1.0  
+    max_wrist_height = 1.0  # 1.0 is the bottom of the frame
     lag_at_top = None
     lag_at_impact = None
     impact_locked = False
-    
-    # --- CORRIDOR DATA ---
-    backswing_top_y = None
-    backswing_bot_y = None
-    forward_top_y = None
-    forward_bot_y = None
-    
-    # Use the passed-in ball_coords if they exist, otherwise keep it None
-    v_ball_pos = ball_coords
-    
-    # --- PERSISTENT DATA ---
-    lag_angles = []
     wrist_trail = []
-    max_lag_sharpness = 180.0
-    # NEW STATE VARIABLES
-    is_downswing = False
-    max_wrist_height = 1.0  # Normalized 0-1, so 1.0 is the bottom
-    lag_at_top = None
-    lag_at_impact = None
-    impact_locked = False
-    # --- CORRIDOR DATA ---
-    backswing_top_y = None
-    backswing_bot_y = None
-    forward_top_y = None
-    forward_bot_y = None
-    v_ball_pos = None
     
-    # 1. SETUP RAW RECORDER
+    # 3. SETUP RAW RECORDER
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(raw_tfile.name, fourcc, fps, (width, height))
@@ -382,6 +349,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     )
 
     return summary, web_tfile.name
+
 
 
 
