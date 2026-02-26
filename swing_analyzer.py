@@ -241,12 +241,12 @@ def analyze_wrist_action(video_path):
                     cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) # Neon Blue
                     cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)   # Neon Green
                     
-                    # Labels
-                    cv2.putText(frame, "PLANE CEILING", (10, backswing_top_y - 130), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-                    cv2.putText(frame, "THE SLOT", (10, forward_bot_y + 110), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    # Bigger, bolder labels
+                    cv2.putText(frame, "PLANE CEILING", (20, backswing_top_y - 130), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 0), 3)
                     
+                    cv2.putText(frame, "THE SLOT", (20, forward_bot_y + 110), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3)
                     cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
 
                 # --- BACKSWING GUIDE RAIL LOGIC ---
@@ -400,6 +400,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
