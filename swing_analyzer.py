@@ -154,6 +154,11 @@ def analyze_diagnostic_swing(video_path, club_type=None):
 
 # 1. Update the signature to accept the new data from web_coach
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
+    # --- AT THE TOP OF YOUR FUNCTION (outside the loop) ---
+    # These variables must start as None so they can be "locked in" later
+    backswing_top_y = None
+    forward_bot_y = None
+    v_ball_pos = ball_coords # Use the coordinates passed from web_coach.py
     cap = cv2.VideoCapture(video_path)
     
     # 2. CRITICAL: Jump the video to the frame the user selected
@@ -209,55 +214,36 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
-            if not ret:
-                break
-
-            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose.process(image)
-
+            if not ret: break
+        
+            # --- 2. INSIDE THE LOOP (Process Pose) ---
+            # ... (Landmark detection happens here) ...
+        
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
+            
+                # Lock in the heights ONLY ONCE at the start of the swing
+                if backswing_top_y is None:
+                    elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, 
+                             landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
+                    wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, 
+                             landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
                 
-                # Coordinates
-                shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
-                elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
-                wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
-
-                p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
-                p2 = (int(elbow[0] * width), int(elbow[1] * height))
-                p3 = (int(wrist[0] * width), int(wrist[1] * height))
-
-                # --- VIRTUAL BALL & IMPACT CONE ---
-                # Use the landmarks from the FIRST processed frame to set the cone width
-                # --- WRIST AND ELBOW HEIGHT CALCULATION ---
-                # This must happen first to define the heights used by the cone
-                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-                
-                if backswing_top_y is None and wrist_confidence > 0.8:
-                    # Capture the heights at address once
-                    # Using elbow and wrist to define the vertical boundaries
+                    # Convert to pixel heights
+                    height, width, _ = frame.shape
                     backswing_top_y = int(elbow[1] * height)
                     forward_bot_y = int(wrist[1] * height)
 
-                # --- DRAW THE CALIBRATED CONE ---
-                if v_ball_pos is not None:
-                    # SAFETY: If the pose tracker hasn't set these yet, 
-                    # we provide a default based on the ball position
-                    if backswing_top_y is None:
-                        backswing_top_y = int(v_ball_pos[1] * 0.7) # 30% above the ball
-                    if forward_bot_y is None:
-                        forward_bot_y = int(v_ball_pos[1] * 1.1) # 10% below the ball
-
+                # --- 3. DRAW THE CONE ---
+                # This now has the heights it needs to stay visible!
+                if v_ball_pos is not None and backswing_top_y is not None:
                     overlay = frame.copy()
-            
-                    # Points: [Apex (Ball), Top-Left (Shoulder), Bottom-Left (Hip)]
-                    # We use 0 for X to make the cone fan out to the left side of the screen
                     pts = np.array([
                         [v_ball_pos[0], v_ball_pos[1]], 
                         [0, backswing_top_y - 120],     
                         [0, forward_bot_y + 80]         
                     ], np.int32)
-
+                
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
             
@@ -396,6 +382,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     )
 
     return summary, web_tfile.name
+
 
 
 
