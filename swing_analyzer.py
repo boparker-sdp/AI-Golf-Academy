@@ -243,19 +243,30 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                         max_wrist_height = curr_wrist_y 
                     if curr_wrist_y < (max_wrist_height - 0.05):
                         impact_locked = True
-
-            # --- 3. DRAW THE CONE (Moved outside 'if results' for stability) ---
+            # --- 3. DRAW THE CONE (Fixing the Apex Drift) ---
             if v_ball_pos is not None and backswing_top_y is not None:
                 overlay = frame.copy()
-                pts = np.array([[v_ball_pos[0], v_ball_pos[1]], [0, backswing_top_y - 120], [0, forward_bot_y + 80]], np.int32)
+                
+                # The Apex must be the ball. The other two points fan out to the left (0).
+                pts = np.array([
+                    [v_ball_pos[0], v_ball_pos[1]], # Point 1: The Ball (Apex)
+                    [0, backswing_top_y - 120],     # Point 2: Top Left
+                    [0, forward_bot_y + 80]         # Point 3: Bottom Left
+                ], np.int32)
+                
                 cv2.fillPoly(overlay, [pts], (220, 220, 220))
                 cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA)
-                cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)
-                cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
+                
+                # Draw the sharp black lines fanning OUT from the ball
+                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
+                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
 
+                # Re-position labels so they don't overlap the golfer
+                cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+  
             out.write(frame)
 
     cap.release()
@@ -271,6 +282,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     summary = f"### 🏌️ Wrist Lab Analysis\n**Top of Swing Lag:** {top_stat}\n**Impact Lag:** {impact_stat}\n\n**Note:** Aim for < 90° top and > 165° impact."
     
     return summary, web_tfile.name
+
 
 
 
