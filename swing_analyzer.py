@@ -51,6 +51,7 @@ def analyze_diagnostic_swing(video_path, club_type=None):
     return "Diagnostic Scan Complete.", web_tfile.name
 
 def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
+    """Anatomy-based plane lab with synchronized shoulder anchors and wrist trails."""
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     h_pix, w_pix = int(cap.get(4)), int(cap.get(3))
@@ -96,18 +97,21 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                     pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, shoulder_y_lock], [0, hip_y_lock + 120]], np.int32)
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-                    cv2.line(frame, frozen_apex, (0, shoulder_y_lock), (0, 0, 0), 2)
-                    cv2.line(frame, frozen_apex, (0, hip_y_lock + 120), (0, 0, 0), 2)
+                    cv2.line(frame, frozen_apex, (0, shoulder_y_lock), (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.line(frame, frozen_apex, (0, hip_y_lock + 120), (0, 0, 0), 2, cv2.LINE_AA)
 
                 # --- 3. THE MISSING HINGE ANGLES (LAG) ---
-                # Calculate angle between Shoulder-Elbow and Elbow-Wrist
                 ba = np.array([lm[12].x - lm[14].x, lm[12].y - lm[14].y])
                 bc = np.array([lm[16].x - lm[14].x, lm[16].y - lm[14].y])
-                cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-                ang = int(np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0))))
+                norm_ba = np.linalg.norm(ba)
+                norm_bc = np.linalg.norm(bc)
                 
-                # Draw live angle on the arm
-                cv2.putText(frame, f"{ang}deg", (curr_re[0] + 15, curr_re[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                if norm_ba > 0 and norm_bc > 0:
+                    cosine_angle = np.dot(ba, bc) / (norm_ba * norm_bc)
+                    ang = int(np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0))))
+                    cv2.putText(frame, f"{ang}deg", (curr_re[0] + 15, curr_re[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                else:
+                    ang = 180
 
                 # Trail Logic
                 if not is_downswing:
@@ -115,7 +119,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                     elif lm[16].y > (max_h + 0.05): is_downswing = True
                     wrist_trail.append(curr_rw)
                 for i in range(1, len(wrist_trail)):
-                    cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 3)
+                    cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 3, cv2.LINE_AA)
 
                 if is_downswing and lag_top is None: lag_top = ang
                 if is_downswing and lm[16].y > 0.5 and lag_impact is None: lag_impact = ang
@@ -124,7 +128,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
 
     cap.release(); out.release()
     web_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-    subprocess.run(['ffmpeg', '-y', '-i', raw_path, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_path])
+    subprocess.run(['ffmpeg', '-y', '-i', raw_path, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     summary = f"### 🏌️ Lab Report: Pull-Left Diagnosis\n**Top Lag:** {lag_top}° | **Impact Lag:** {lag_impact}°\n\n**Coach's Note:** You are 'On Plane' but 'Out of Sync.' Your shoulders are racing ahead of your hips. Focus on letting the hips 'clear' the space first to allow the club to swing toward the target rather than across your body."
     return summary, web_path
