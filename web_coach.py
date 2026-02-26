@@ -67,7 +67,6 @@ if uploaded_file is not None:
         img = Image.fromarray(frame_rgb)
         
         # 2. MANUALLY RESIZE for the UI to prevent cropping
-        # We set a max height of 600 pixels so the ball is always visible
         max_ui_height = 600
         scale_ratio = max_ui_height / img.height
         new_width = int(img.width * scale_ratio)
@@ -86,14 +85,13 @@ if uploaded_file is not None:
             raw_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             raw_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            # 2. DETECT ROTATION: If height > width but raw says otherwise, swap them
-            # This fixes the '4-foot drift' on iPhone portrait videos
+            # 2. DETECT ROTATION: The fix for iPhone portrait drift
             if img.height > img.width and raw_w > raw_h:
                 orig_w, orig_h = raw_h, raw_w
             else:
                 orig_w, orig_h = raw_w, raw_h
             
-            # 3. Use the Image Object size for scaling
+            # 3. Use the resized image size for accurate scaling
             disp_w, disp_h = img_resized.size
             
             # 4. Precise Mapping
@@ -107,30 +105,29 @@ if uploaded_file is not None:
             
             st.success(f"✅ Target Locked at {ball_pos}")
 
-            # 5. The Launch Button
+            # 5. The Launch Button (Now perfectly aligned)
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True, key="calibrated_run"):
                 with st.spinner("Analyzing your path and lag..."):
-                # All these lines must line up vertically
-                summary, video_out = analyze_wrist_action(
-                    video_path, 
-                    ball_coords=ball_pos, 
-                    start_frame=frame_idx
-                )
-                
-                st.divider()
-                st.header("📊 Your Wrist Lab Report")
-                st.markdown(summary)
-                st.video(video_out)
-
-                # FIX: Bring 'with open' back to the left so it matches st.video
-                with open(video_out, "rb") as v_file:
-                    st.download_button(
-                        "💾 Save Wrist Lab Video",
-                        data=v_file.read(),
-                        file_name="Wrist_Lab_Analysis.mp4",
-                        mime="video/mp4",
-                        use_container_width=True
+                    summary, video_out = analyze_wrist_action(
+                        video_path, 
+                        ball_coords=ball_pos, 
+                        start_frame=frame_idx
                     )
+                    st.divider()
+                    st.markdown(summary)
+                    st.video(video_out)
+
+                    # FIXED: These must be tucked INSIDE the 'if st.button' block
+                    with open(video_out, "rb") as v_file:
+                        st.download_button(
+                            "💾 Save Wrist Lab Video",
+                            data=v_file.read(),
+                            file_name="Wrist_Lab_Analysis.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
+                        )
+
+    # 6. Release the video capture (Back at the 'if ret' level)
     cap.release()
 
     # --- OTHER AI COACH FEATURES ---
@@ -191,6 +188,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
