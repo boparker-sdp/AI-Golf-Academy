@@ -8,6 +8,7 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 from swing_analyzer import analyze_diagnostic_swing, analyze_wrist_action
 from ai_coach import vibe_coach, coach_chat
 from wrist_tracker import drill_coach
+
 st.set_page_config(page_title="AI Golf Academy", layout="centered")
 
 # --- INITIALIZE APP MEMORY ---
@@ -38,7 +39,7 @@ st.sidebar.info(f"Active Model: {selected_model_display}")
 
 # --- MAIN UI ---
 st.title("🏌️‍♂️ AI Golf Academy")
-st.warning("📱 **iPhone Users:** To ensure video uploads and report downloads work perfectly, please run this app directly in your Safari or Chrome browser, rather than saving it to your Home Screen.")
+st.warning("📱 **iPhone Users:** Run this app directly in Safari or Chrome, rather than saving it to your Home Screen.")
 
 uploaded_file = st.file_uploader("Upload your swing...", type=["mp4", "mov", "avi", "m4v", "webm"])
 
@@ -47,33 +48,34 @@ if uploaded_file is not None:
     with open(video_path, "wb") as f:
         f.write(uploaded_file.read())
         
-    # --- STEP 1: CALIBRATION UI ---
+    # --- CALIBRATION UI ---
     st.divider()
     st.subheader("🎯 Step 1: Set Your Swing Plane")
-    st.info("Scrub to the exact moment the club is behind the ball at address, then click the ball.")
     
-    # Load video to get frames for the scrubber
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
-    # 1. Slider to find the 'Address' moment
+    st.info("Scrub to the address position (club behind ball), then click the ball.")
     frame_idx = st.slider("Find Address Frame:", 0, total_frames - 1, value=0)
     
-    # 2. Extract and display that specific frame for the clicker
     cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
     ret, frame = cap.read()
     
     if ret:
-        # Convert BGR (OpenCV) to RGB (Streamlit/PIL)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
         
-        # 3. The Interactive Coordinate Picker
-        # This displays the image and waits for a click
-        coords = streamlit_image_coordinates(img, key="ball_picker")
+        st.write("Now, **click directly on the golf ball** in the image below:")
+        
+        # use_container_width=False ensures we don't crop the ball at the bottom
+        coords = streamlit_image_coordinates(
+            img, 
+            key="ball_picker",
+            use_container_width=False
+        )
         
         if coords:
-            # 1. Scaling Math (Keep this!)
+            # Scaling math to match screen click to original video resolution
             original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             scale_x = original_width / img.width
@@ -86,29 +88,34 @@ if uploaded_file is not None:
             
             st.success(f"✅ Ball locked at {ball_pos}. Ready to analyze!")
 
-            # 2. The Trigger (Everything else goes inside here)
             if st.button("🚀 Run Wrist Lab Analysis", use_container_width=True):
                 with st.spinner("Analyzing your path and lag..."):
-                    # Call the backend
                     summary, video_out = analyze_wrist_action(
                         video_path, 
                         ball_coords=ball_pos, 
                         start_frame=frame_idx
                     )
                     
-                    # 3. Display the Results (The four lines you asked about)
                     st.divider()
                     st.header("📊 Your Wrist Lab Report")
                     st.markdown(summary)
                     st.video(video_out)
-    
+                    
+                    with open(video_out, "rb") as v_file:
+                        st.download_button(
+                            "💾 Save Wrist Lab Video",
+                            data=v_file.read(),
+                            file_name="Wrist_Lab_Analysis.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
+                        )
     cap.release()
-    
-    # --- BALL STRIKING CONTEXT (V2) ---
+
+    # --- OTHER AI COACH FEATURES ---
+    st.divider()
     st.markdown("### Tell the Coach About the Shot")
     
     club_type = st.radio("Club Used:", ["Iron / Wedge", "Wood / Driver"], horizontal=True)
-    
     col1, col2, col3 = st.columns(3)
     with col1:
         shape = st.selectbox("Shape", ["Straight", "Draw", "Fade", "Pull", "Push", "Hook", "Slice", "Unknown"])
@@ -117,117 +124,48 @@ if uploaded_file is not None:
     with col3:
         direction = st.selectbox("Direction", ["On Target", "Left", "Right", "Short", "Long", "Unknown"])
 
-    st.divider()
-
-    # --- 1. AI VIBE COACH ---
     if st.button("💬 Ask AI Vibe Coach", use_container_width=True):
         with st.spinner(f"Consulting {selected_model_display}..."):
             try:
-                # A. Run the technical OpenCV Math first
-                # (video_path is the variable where your video is saved)
-                # NEW CODE
-                # The "_" is a placeholder that ignores the video path because the AI only needs the text
                 math_feedback, _ = analyze_diagnostic_swing(video_path)
-                
-                # B. Combine your inputs with the math result
                 result_context = (
                     f"Club: {club_type}, Shape: {shape}, Contact: {contact}, "
                     f"Direction: {direction}. OpenCV Analysis: {math_feedback}"
                 )
-                
-                # C. Send everything to the AI Vibe Coach
                 coach_report = vibe_coach(video_path, result_context, selected_model_id)
-                
-                # Save to memory to trigger the chat box!
                 st.session_state.coach_report = coach_report
                 st.session_state.chat_messages = []
-                
             except Exception as e:
-                st.error(f"Error communicating with AI: {e}")
-    
-    # --- CHAT UI (Only shows if a report exists) ---
+                st.error(f"Error: {e}")
+
     if st.session_state.coach_report:
         st.success("Analysis Complete!")
         st.markdown(st.session_state.coach_report)
         
-        # Download Button for the Text Report
         st.download_button(
             label="📄 Save Coach Report",
-            data=st.session_state.coach_report,  # <-- Just add st.session_state. here!
-            file_name="AI_Golf_Coach_Report.txt",
-            mime="application/octet-stream",  # <-- This is the magic line that fixes the freeze
-            key="save_report_btn",
+            data=st.session_state.coach_report,
+            file_name="Coach_Report.txt",
+            mime="application/octet-stream",
             use_container_width=True
         )
         
         st.divider()
         st.markdown("### 🗣️ Chat with your Coach")
-        
         for msg in st.session_state.chat_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
                 
-        if user_q := st.chat_input("Ask about your swing (e.g., 'What does laid off mean?'):"):
+        if user_q := st.chat_input("Ask about your swing:"):
             st.session_state.chat_messages.append({"role": "user", "content": user_q})
             with st.chat_message("user"):
                 st.markdown(user_q)
-                
             with st.chat_message("assistant"):
-                with st.spinner("Coach is thinking..."):
-                    answer = coach_chat(user_q, st.session_state.coach_report, selected_model_id)
-                    st.markdown(answer)
-                    st.session_state.chat_messages.append({"role": "assistant", "content": answer})
+                answer = coach_chat(user_q, st.session_state.coach_report, selected_model_id)
+                st.markdown(answer)
+                st.session_state.chat_messages.append({"role": "assistant", "content": answer})
 
-    st.divider()
-
-# --- 2. X-RAY DIAGNOSTIC ---
-    if st.button("🦴 Run X-Ray Diagnostic", use_container_width=True):
-        with st.spinner("Processing X-Ray Vision..."):
-            try:
-                # We expect a tuple back: (report_text, file_path)
-                report, xray_video_path = analyze_diagnostic_swing(video_path, club_type)
-                
-                # Read the newly converted MP4 into memory
-                with open(xray_video_path, "rb") as video_file:
-                    video_bytes = video_file.read()
-                
-                # Display with the explicit MP4 format for Safari/Firefox
-                st.video(video_bytes, format="video/mp4")
-                
-                st.info(report)
-                
-                # The download button now points to the same MP4
-                st.download_button(
-                    label="💾 Save X-Ray Video", 
-                    data=video_bytes, 
-                    file_name="XRay_Swing_Analysis.mp4", 
-                    mime="video/mp4", 
-                    key="save_xray", 
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Error processing X-Ray: {e}")
-
-    # --- CLEAR SCREEN ---
-    st.divider()
     if st.button("🔄 Clear Screen for Next Swing", type="primary", use_container_width=True):
-        # Wipes the memory so you can start fresh!
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
