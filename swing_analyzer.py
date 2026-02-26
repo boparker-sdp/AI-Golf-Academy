@@ -163,11 +163,11 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
-    # 2. PERSISTENT STATE (Defined ONLY ONCE)
+    # 2. PERSISTENT STATE
     backswing_top_y = None
     forward_bot_y = None
     is_downswing = False
-    max_wrist_height = 1.0  # 1.0 is the bottom of the frame
+    max_wrist_height = 1.0  
     lag_at_top = None
     lag_at_impact = None
     impact_locked = False
@@ -182,173 +182,96 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
-        
-            # --- 2. INSIDE THE LOOP (Process Pose) ---
-            # ... (Landmark detection happens here) ...
+            
+            results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                     
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
-            
-                # Lock in the heights ONLY ONCE at the start of the swing
-                if backswing_top_y is None:
-                    elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, 
-                             landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
-                    wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, 
-                             landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
-                
-                    # Convert to pixel heights
-                    height, width, _ = frame.shape
-                    backswing_top_y = int(elbow[1] * height)
-                    forward_bot_y = int(wrist[1] * height)
+                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
 
-            # --- 3. DRAW THE CONE ---
-            # This now has the heights it needs to stay visible!
-            if v_ball_pos is not None and backswing_top_y is not None:
-                overlay = frame.copy()
-                pts = np.array([
-                    [v_ball_pos[0], v_ball_pos[1]], 
-                    [0, backswing_top_y - 120],     
-                    [0, forward_bot_y + 80]         
-                ], np.int32)
-            
-                cv2.fillPoly(overlay, [pts], (220, 220, 220))
-                cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
-        
-                # Draw the Boundary Lines in Black
-                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
-                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
-
-                # Labels
-                cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                # --- NEW: LANDMARK MAPPING (Fixes the 'p1, p2, p3' crash) ---
+                # Normalized coords for math
+                shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
+                elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].x, landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
+                wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x, landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y]
                 
-                # Small white dot at the ball position
-                cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
-                
-            # --- TRANSITION DETECTION ---
-            curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
-            if not is_downswing:
-                if curr_wrist_y < max_wrist_height:
-                    max_wrist_height = curr_wrist_y 
-                elif curr_wrist_y > (max_wrist_height + 0.05):
-                    is_downswing = True
+                # Pixel coords for drawing (p1, p2, p3)
+                p1 = (int(shoulder[0] * width), int(shoulder[1] * height))
+                p2 = (int(elbow[0] * width), int(elbow[1] * height))
+                p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
-                # B. ONLY add to trail during Backswing
+                # Lock in the heights at address
+                if backswing_top_y is None and wrist_confidence > 0.8:
+                    backswing_top_y = p2[1]
+                    forward_bot_y = p3[1]
+
+                # --- TRANSITION DETECTION ---
+                curr_wrist_y = wrist[1]
+                if not is_downswing:
+                    if curr_wrist_y < max_wrist_height:
+                        max_wrist_height = curr_wrist_y 
+                    elif curr_wrist_y > (max_wrist_height + 0.05):
+                        is_downswing = True
+
+                # B. Trail Logic
                 if not is_downswing and wrist_confidence > 0.8:
                     dist = np.linalg.norm(np.array(p3) - np.array(wrist_trail[-1])) if wrist_trail else 0
                     if not wrist_trail or (5 < dist < 50):
                         wrist_trail.append(p3)
-                
-                # C. Draw the Trail
+
+                # C. Draw Skeleton & Trail
                 if len(wrist_trail) > 1:
                     for i in range(1, len(wrist_trail)):
                         cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 2)
-
-                # D. Status Indicator (New)
-                status_text = "BACKSWING TRACKING..." if not is_downswing else "GUIDE ACTIVE"
-                status_color = (0, 255, 255) if not is_downswing else (0, 255, 0)
-                cv2.putText(frame, status_text, (20, height - 20), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
                 
-                # --- SKELETON ---
                 cv2.line(frame, p1, p2, (255, 255, 255), 2)
                 cv2.line(frame, p2, p3, (255, 255, 255), 2)
                 cv2.circle(frame, p3, 10, (0, 255, 255), -1)
 
-                # --- LAG LANDMARK CAPTURE ---
-                # 1. Calculate the raw hinge angle at the elbow
+                # --- LAG MATH ---
                 ba = np.array(shoulder) - np.array(elbow)
                 bc = np.array(wrist) - np.array(elbow)
                 cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
                 raw_angle = np.degrees(np.arccos(np.clip(cosine_angle, -1.0, 1.0)))
 
-                # 2. Capture: Lag at the Top (Transition)
                 if is_downswing and lag_at_top is None:
                     lag_at_top = int(raw_angle)
 
-                # 3. Capture: Lag at Impact (With Absolute Lockout)
-                # If already locked, the code skips this entire block forever
                 if is_downswing and curr_wrist_y > 0.5 and not impact_locked:
-                    if wrist_confidence > 0.6: # Slightly higher confidence for impact
-                        
-                        # A. Record the lag as long as hands are moving DOWN
-                        if lag_at_impact is None or curr_wrist_y >= max_wrist_height:
-                            lag_at_impact = int(raw_angle)
-                            max_wrist_height = curr_wrist_y 
-                        
-                        # B. THE DEADBOLT: Sensitive Trigger
-                        # If hands rise even 5% (0.05) from the bottom, lock the door.
-                        if curr_wrist_y < (max_wrist_height - 0.05):
-                            impact_locked = True
-                            
-                # --- DISPLAY RECAP LABELS ---
-                if lag_at_top is not None:
-                    # Top Color: Lower is sharper/better
-                    if lag_at_top < 90: top_color = (0, 255, 0)      # Green
-                    elif lag_at_top < 110: top_color = (0, 165, 255) # Orange
-                    else: top_color = (0, 0, 255)                    # Red
-                    
-                    cv2.putText(frame, f"TOP LAG: {lag_at_top} DEG", (20, 40), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, top_color, 2)
-                
-                # --- DISPLAY IMPACT RECAP ---
-                if lag_at_impact is not None:
-                    # Impact Color Logic: Higher is straighter/better
-                    if lag_at_impact > 165: 
-                        imp_color = (0, 255, 0)      # Green (Elite Extension)
-                    elif lag_at_impact > 145: 
-                        imp_color = (0, 165, 255)    # Orange (Solid)
-                    else: 
-                        imp_color = (0, 0, 255)      # Red (Casting/Scooping)
-                    
-                    cv2.putText(frame, f"IMPACT LAG: {lag_at_impact} DEG", (20, 70), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, imp_color, 2)
+                    if lag_at_impact is None or curr_wrist_y >= max_wrist_height:
+                        lag_at_impact = int(raw_angle)
+                        max_wrist_height = curr_wrist_y 
+                    if curr_wrist_y < (max_wrist_height - 0.05):
+                        impact_locked = True
 
-                # --- [A] D. Status Indicator (Moving to the bottom for overlay) ---
-                status_text = "BACKSWING TRACKING..." if not is_downswing else "GUIDE ACTIVE"
-                status_color = (0, 255, 255) if not is_downswing else (0, 255, 0)
-                cv2.putText(frame, status_text, (20, height - 20), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 2)
+            # --- 3. DRAW THE CONE (Moved outside 'if results' for stability) ---
+            if v_ball_pos is not None and backswing_top_y is not None:
+                overlay = frame.copy()
+                pts = np.array([[v_ball_pos[0], v_ball_pos[1]], [0, backswing_top_y - 120], [0, forward_bot_y + 80]], np.int32)
+                cv2.fillPoly(overlay, [pts], (220, 220, 220))
+                cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+                cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA)
+                cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)
+                cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
 
-                # --- [B] IDEAL RANGES CHEAT SHEET (Upper Right) ---
-                # Background box for readability
-                cv2.rectangle(frame, (width-230, 10), (width-10, 85), (50, 50, 50), -1)
-                cv2.putText(frame, "IDEAL RANGES:", (width-220, 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-                cv2.putText(frame, "Top Lag: < 90 deg", (width-220, 55), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                cv2.putText(frame, "Impact: > 165 deg", (width-220, 75), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            out.write(frame)
 
-                # --- [C] WRITE FRAME ---
-                out.write(frame)
+    cap.release()
+    out.release()
 
-        cap.release()
-        out.release()
-
-    # 2. CONVERSION
+    # CONVERSION & SUMMARY (Keep your existing code here)
     web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], 
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.path.exists(raw_tfile.name): os.remove(raw_tfile.name)
     
-    if os.path.exists(raw_tfile.name):
-        os.remove(raw_tfile.name)
-
-    # Create the summary text with a fall-back if stats weren't captured
     top_stat = f"{lag_at_top}°" if lag_at_top else "Not captured"
     impact_stat = f"{lag_at_impact}°" if lag_at_impact else "Not captured"
-
-    summary = (
-        f"### 🏌️ Wrist Lab Analysis\n"
-        f"**Top of Swing Lag (Hinge):** {top_stat}\n"
-        f"**Impact Lag (Release):** {impact_stat}\n\n"
-        f"**Coach's Note:** Aim for < 90° at the top and > 165° at impact. "
-        f"If your impact lag is low (Red), focus on 'extending' your arms through the ball!"
-    )
-
+    summary = f"### 🏌️ Wrist Lab Analysis\n**Top of Swing Lag:** {top_stat}\n**Impact Lag:** {impact_stat}\n\n**Note:** Aim for < 90° top and > 165° impact."
+    
     return summary, web_tfile.name
+
 
 
 
