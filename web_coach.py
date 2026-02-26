@@ -3,7 +3,23 @@ import tempfile
 import os
 from swing_analyzer import analyze_diagnostic_swing, analyze_wrist_action
 
+st.set_page_config(page_title="AI Golf Academy", layout="wide")
+
 st.title("🏌️ AI Golf Diagnostic Hub")
+
+# --- CAMERA SETUP GUIDE ---
+with st.expander("📸 How to get the best AI Analysis"):
+    st.markdown("""
+    **1. Wrist & Plane Lab (Down-the-Line):**
+    * Camera at **hip height**.
+    * Aim through your **hands** toward the target.
+    
+    **2. Stability & Sequence Scan (Face-On):**
+    * Camera at **chest height**.
+    * Aim at your **belt buckle**.
+    
+    *Note: Perspective errors can cause the 'Anatomy Lines' to drift.*
+    """)
 
 uploaded_file = st.file_uploader("Upload your swing video", type=['mp4', 'mov', 'avi'])
 
@@ -12,29 +28,27 @@ if uploaded_file:
     tfile.write(uploaded_file.read())
     video_path = tfile.name
 
-    st.video(video_path)
-    
-    st.subheader("Choose a Diagnostic Lab:")
-    col1, col2 = st.columns(2)
+    col_vid, col_results = st.columns([1, 1])
 
-    with col1:
-        # This solves the 'Thin/Fat' issue by tracking Head/Hip stability
-        if st.button("⚖️ Run Stability Scan", use_container_width=True):
-            with st.spinner("Checking Head Bobbing & Hip Sway..."):
-                summary, video_out = analyze_diagnostic_swing(video_path)
-                st.session_state.summary = summary
-                st.session_state.result_video = video_out
+    with col_vid:
+        st.video(video_path)
+        
+        st.subheader("Run Diagnostic Labs")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("⚖️ Stability & Sequence", use_container_width=True):
+                with st.spinner("Analyzing Hip/Shoulder Sequence..."):
+                    summary, video_out = analyze_diagnostic_swing(video_path)
+                    st.session_state.summary = summary
+                    st.session_state.result_video = video_out
+        with c2:
+            if st.button("🚀 Plane & X-Factor", use_container_width=True):
+                with st.spinner("Analyzing Wrist Lag & X-Factor..."):
+                    summary, video_out = analyze_wrist_action(video_path)
+                    st.session_state.summary = summary
+                    st.session_state.result_video = video_out
 
-    with col2:
-        # This is our Anatomy-Based Plane Lab (No clicking required!)
-        if st.button("🚀 Run Plane & Wrist Lab", use_container_width=True):
-            with st.spinner("Analyzing Swing Plane & Wrist Lag..."):
-                summary, video_out = analyze_wrist_action(video_path)
-                st.session_state.summary = summary
-                st.session_state.result_video = video_out
-
-    # --- DISPLAY RESULTS ---
-    if 'result_video' in st.session_state:
-        st.divider()
-        st.markdown(st.session_state.summary)
-        st.video(st.session_state.result_video)
+    with col_results:
+        if 'result_video' in st.session_state:
+            st.markdown(st.session_state.summary)
+            st.video(st.session_state.result_video)
