@@ -180,49 +180,47 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
-            if not ret: break
-            
+            if not ret: break          
             results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            
+
             if results.pose_landmarks:
                 lm = results.pose_landmarks.landmark
-                
-                # Current points (for lag math)
-                s = [lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
-                e = [lm[mp_pose.PoseLandmark.RIGHT_ELBOW].x, lm[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
-                w = [lm[mp_pose.PoseLandmark.RIGHT_WRIST].x, lm[mp_pose.PoseLandmark.RIGHT_WRIST].y]
-                h = [lm[mp_pose.PoseLandmark.RIGHT_HIP].x, lm[mp_pose.PoseLandmark.RIGHT_HIP].y]
+                # Get exact frame dimensions for this specific frame
+                h_pix, w_pix = frame.shape[:2]
 
-                # Convert to pixels for drawing
-                ps = (int(s[0]*width), int(s[1]*height))
-                pw = (int(w[0]*width), int(w[1]*height))
+                # Convert shoulder and hip to pixel coordinates
+                # We use the RIGHT side as the camera is facing your back/side
+                rs_x = int(lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].x * w_pix)
+                rs_y = int(lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * h_pix)
+                rh_x = int(lm[mp_pose.PoseLandmark.RIGHT_HIP].x * w_pix)
+                rh_y = int(lm[mp_pose.PoseLandmark.RIGHT_HIP].y * h_pix)
 
-                # --- LOCK ANATOMY AT ADDRESS ---
+                # --- LOCK ANATOMY AT ADDRESS (First Frame) ---
                 if anatomy_apex is None:
-                    # We project lines to find the "Ground Apex"
-                    # Upper boundary: Shoulder to Elbow slope
-                    # Lower boundary: Hip to Wrist slope
-                    shoulder_anchor = ps
-                    hip_anchor = (int(h[0]*width), int(h[1]*height))
+                    shoulder_anchor = (rs_x, rs_y)
+                    hip_anchor = (rh_x, rh_y)
                     
-                    # For simplicity, we project the cone fanning out to the ball area
-                    # based on your setup height
-                    anatomy_apex = (int(s[0]*width + 150), int(h[1]*height + 250))
+                    # Project the Apex forward into the 'Ball Zone'
+                    # We move 30% of the screen width forward from your shoulder
+                    apex_x = int(rs_x + (w_pix * 0.30))
+                    # We set the apex height to be slightly below your hip
+                    apex_y = int(rh_y + (h_pix * 0.15))
+                    anatomy_apex = (apex_x, apex_y)
 
                 # --- DRAW THE ANATOMY CONE ---
                 overlay = frame.copy()
                 pts = np.array([
-                    [anatomy_apex[0], anatomy_apex[1]], # Estimated Ball
-                    [0, shoulder_anchor[1]],           # From Shoulder
-                    [0, hip_anchor[1] + 100]           # From Hip
+                    [anatomy_apex[0], anatomy_apex[1]], # The "Ball"
+                    [0, shoulder_anchor[1]],           # Ceiling from Shoulder height
+                    [0, hip_anchor[1] + 100]           # Slot from Hip height
                 ], np.int32)
                 
                 cv2.fillPoly(overlay, [pts], (220, 220, 220))
                 cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
                 
-                # Sharp boundary lines
-                cv2.line(frame, anatomy_apex, (0, shoulder_anchor[1]), (0, 0, 0), 2)
-                cv2.line(frame, anatomy_apex, (0, hip_anchor[1] + 100), (0, 0, 0), 2)
+                # Draw sharp lines from Apex back to the left edge
+                cv2.line(frame, anatomy_apex, (0, shoulder_anchor[1]), (0, 0, 0), 2, cv2.LINE_AA)
+                cv2.line(frame, anatomy_apex, (0, hip_anchor[1] + 100), (0, 0, 0), 2, cv2.LINE_AA)
                 
                 cv2.putText(frame, "PLANE CEILING", (50, shoulder_anchor[1] - 20), 0, 0.6, (0,0,0), 1)
                 cv2.putText(frame, "THE SLOT", (50, hip_anchor[1] + 80), 0, 0.6, (0,0,0), 1)
@@ -246,6 +244,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     summary = f"### 🏌️ Wrist Lab Analysis\n**Top of Swing Lag:** {top_stat}\n**Impact Lag:** {impact_stat}\n\n**Note:** Aim for < 90° top and > 165° impact."
     
     return summary, web_tfile.name
+
 
 
 
