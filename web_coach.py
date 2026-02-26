@@ -62,27 +62,38 @@ if uploaded_file is not None:
     ret, frame = cap.read()
     
     if ret:
+        # 1. Convert BGR to RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(frame_rgb)
         
-        st.write("Now, **click directly on the golf ball** in the image below:")
+        # 2. MANUALLY RESIZE for the UI to prevent cropping
+        # We set a max height of 600 pixels so the ball is always visible
+        max_ui_height = 600
+        scale_ratio = max_ui_height / img.height
+        new_width = int(img.width * scale_ratio)
+        img_resized = img.resize((new_width, max_ui_height))
         
-        # We pass the img directly. If it still fails, we'll try passing the raw RGB array.
+        st.write("Now, **click directly on the golf ball** (Full frame shown below):")
+        
+        # 3. The Picker (using the resized image)
         coords = streamlit_image_coordinates(
-            img,
+            img_resized,
             key="ball_picker"
         )
         
         if coords:
-            # Scaling math to match screen click to original video resolution
+            # 4. UPDATED SCALING MATH
+            # We map the click on the 600px image back to the original video size
             original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            scale_x = original_width / img.width
-            scale_y = original_height / img.height
+            
+            # Map click from 'img_resized' to 'original'
+            actual_scale_x = original_width / img_resized.width
+            actual_scale_y = original_height / img_resized.height
             
             ball_pos = (
-                int(coords['x'] * scale_x), 
-                int(coords['y'] * scale_y)
+                int(coords['x'] * actual_scale_x), 
+                int(coords['y'] * actual_scale_y)
             )
             
             st.success(f"✅ Ball locked at {ball_pos}. Ready to analyze!")
@@ -94,9 +105,7 @@ if uploaded_file is not None:
                         ball_coords=ball_pos, 
                         start_frame=frame_idx
                     )
-                    
                     st.divider()
-                    st.header("📊 Your Wrist Lab Report")
                     st.markdown(summary)
                     st.video(video_out)
                     
@@ -168,4 +177,5 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
