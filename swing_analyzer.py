@@ -164,55 +164,49 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     
     # Anatomy Anchors (Set at Address)
     anatomy_apex = None
-    shoulder_anchor = None
-    hip_anchor = None
+    shoulder_anchor_y = None
+    hip_anchor_y = None
     
     # State Variables
     is_downswing = False
     max_wrist_height = 1.0
     lag_at_top, lag_at_impact = None, None
     impact_locked = False
-    wrist_trail = []
 
     raw_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.avi')
-    out = cv2.VideoWriter(raw_tfile.name, cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(raw_tfile.name, fourcc, fps, (width, height))
 
     with mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
-            if not ret: break          
+            if not ret: break
+            
+            # Get exact pixel truth for this specific frame
+            h_pix, w_pix, _ = frame.shape
             results = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
+            
             if results.pose_landmarks:
-                # 1. Get current pixel truth (SAME as your X-ray code)
-                h_pix, w_pix, _ = frame.shape
                 lm = results.pose_landmarks.landmark
-
-                # 2. Extract specific joints using the exact same scaling logic
-                # We use 'visibility' to ensure we only anchor on a solid detection
                 rs = lm[mp_pose.PoseLandmark.RIGHT_SHOULDER]
                 rh = lm[mp_pose.PoseLandmark.RIGHT_HIP]
 
-                # 3. SET THE ANCHORS (Only on the first frame of the analysis)
+                # --- 2. LOCK ANATOMY AT ADDRESS ---
                 if anatomy_apex is None and rs.visibility > 0.7:
-                    # Capture exact pixel locations
-                    shoulder_y_anchor = int(rs.y * h_pix)
-                    hip_y_anchor = int(rh.y * h_pix)
+                    # Capture exact pixel Y-coordinates
+                    shoulder_anchor_y = int(rs.y * h_pix)
+                    hip_anchor_y = int(rh.y * h_pix)
                     
-                    # Set the 'Forward Apex' (Where the ball is)
-                    # We project forward based on your body width to find the ground
+                    # Project Apex: Move forward from shoulder based on body width
                     body_width = abs(rs.x - lm[mp_pose.PoseLandmark.LEFT_SHOULDER].x) * w_pix
-                    apex_x = int((rs.x * w_pix) + (body_width * 1.5)) 
-                    apex_y = int(hip_y_anchor + (h_pix * 0.15)) # 15% below hip
+                    apex_x = int((rs.x * w_pix) + (body_width * 2.0)) 
+                    apex_y = int(hip_anchor_y + (h_pix * 0.15)) 
                     
                     anatomy_apex = (apex_x, apex_y)
-                    shoulder_anchor_y = shoulder_y_anchor
-                    hip_anchor_y = hip_y_anchor
 
-                # --- DRAWING: Using the Hard-Synced Anchors ---
-                if anatomy_apex:
+                # --- 3. DRAW THE ANATOMY CONE (Only if anchored) ---
+                if anatomy_apex is not None:
                     overlay = frame.copy()
-                    # The "V" always starts at the Apex and goes back to X=0
                     pts = np.array([
                         [anatomy_apex[0], anatomy_apex[1]], 
                         [0, shoulder_anchor_y],           
@@ -225,42 +219,28 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                     # Boundary lines
                     cv2.line(frame, anatomy_apex, (0, shoulder_anchor_y), (0, 0, 0), 2, cv2.LINE_AA)
                     cv2.line(frame, anatomy_apex, (0, hip_anchor_y + 80), (0, 0, 0), 2, cv2.LINE_AA)
-                
-                cv2.putText(frame, "PLANE CEILING", (50, shoulder_anchor[1] - 20), 0, 0.6, (0,0,0), 1)
-                cv2.putText(frame, "THE SLOT", (50, hip_anchor[1] + 80), 0, 0.6, (0,0,0), 1)
-
-                # (Keep your Wrist Trail and Lag Math logic below this...)
-                # ... [Wrist Trail & Lag Code] ...
+                    
+                    # Labels using the anchored Y-coordinates
+                    cv2.putText(frame, "PLANE CEILING", (50, shoulder_anchor_y - 20), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 1, cv2.LINE_AA)
+                    cv2.putText(frame, "THE SLOT", (50, hip_anchor_y + 110), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 1, cv2.LINE_AA)
 
             out.write(frame)
 
     cap.release()
     out.release()
     
-    # ... [FFMPEG Conversion Code] ...
-    # CONVERSION & SUMMARY (Keep your existing code here)
+    # --- 4. CONVERSION & FEEDBACK ---
     web_tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(['ffmpeg', '-y', '-i', raw_tfile.name, '-c:v', 'libx264', 
+                    '-pix_fmt', 'yuv420p', '-movflags', 'faststart', web_tfile.name], 
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
     if os.path.exists(raw_tfile.name): os.remove(raw_tfile.name)
-    
-    top_stat = f"{lag_at_top}°" if lag_at_top else "Not captured"
-    impact_stat = f"{lag_at_impact}°" if lag_at_impact else "Not captured"
-    summary = f"### 🏌️ Wrist Lab Analysis\n**Top of Swing Lag:** {top_stat}\n**Impact Lag:** {impact_stat}\n\n**Note:** Aim for < 90° top and > 165° impact."
-    
+
+    summary = "### 🏌️ Anatomy Plane Analysis\nCone anchored to shoulder and hip. Use this to track if you dip (Fat) or lift (Thin) during the strike."
     return summary, web_tfile.name
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
