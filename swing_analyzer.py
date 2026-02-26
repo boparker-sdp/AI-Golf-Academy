@@ -90,18 +90,37 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                 curr_rh_y = int(lm[mp_pose.PoseLandmark.RIGHT_HIP].y * h_pix)
                 curr_rw = (int(lm[mp_pose.PoseLandmark.RIGHT_WRIST].x * w_pix), int(lm[mp_pose.PoseLandmark.RIGHT_WRIST].y * h_pix))
 
+                # 1. Anchor Anatomy with Slope Math
                 if anatomy_apex is None and lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].visibility > 0.7:
                     shoulder_anchor_y = curr_rs_y
                     hip_anchor_y = curr_rh_y
-                    anatomy_apex = (int(curr_rs_x + (w_pix * 0.35)), int(curr_rh_y + (h_pix * 0.10)))
+                    
+                    # Calculate arm slope (Shoulder to Wrist)
+                    dx = curr_rw[0] - curr_rs_x
+                    dy = curr_rw[1] - curr_rs_y
+                    
+                    if dx != 0:
+                        slope = dy / dx
+                        # Project Apex 2.5 body-widths forward
+                        body_w = abs(lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].x - lm[mp_pose.PoseLandmark.LEFT_SHOULDER].x) * w_pix
+                        apex_x = int(curr_rs_x + (body_w * 2.5))
+                        apex_y = int(curr_rs_y + (slope * (body_w * 2.5)))
+                        anatomy_apex = (apex_x, apex_y)
 
+                # 2. Draw Anatomy Cone
                 if anatomy_apex is not None:
                     overlay = frame.copy()
-                    pts = np.array([[anatomy_apex[0], anatomy_apex[1]], [0, shoulder_anchor_y], [0, hip_anchor_y + 100]], np.int32)
+                    # Updated points to use actual shoulder height and hip slot
+                    pts = np.array([
+                        [anatomy_apex[0], anatomy_apex[1]], 
+                        [0, shoulder_anchor_y], 
+                        [0, hip_anchor_y + 120]
+                    ], np.int32)
+                    
                     cv2.fillPoly(overlay, [pts], (220, 220, 220))
                     cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
                     cv2.line(frame, anatomy_apex, (0, shoulder_anchor_y), (0, 0, 0), 2, cv2.LINE_AA)
-                    cv2.line(frame, anatomy_apex, (0, hip_anchor_y + 100), (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.line(frame, anatomy_apex, (0, hip_anchor_y + 120), (0, 0, 0), 2, cv2.LINE_AA)
                     cv2.putText(frame, "PLANE CEILING", (50, shoulder_anchor_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 1, cv2.LINE_AA)
                     cv2.putText(frame, "THE SLOT", (50, hip_anchor_y + 110), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 1, cv2.LINE_AA)
 
@@ -120,8 +139,8 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
 
                 s = [lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].x, lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
                 e = [lm[mp_pose.PoseLandmark.RIGHT_ELBOW].x, lm[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
-                w = [lm[mp_pose.PoseLandmark.RIGHT_WRIST].x, lm[mp_pose.PoseLandmark.RIGHT_WRIST].y]
-                ba, bc = np.array(s) - np.array(e), np.array(w) - np.array(e)
+                wrist_coords = [lm[mp_pose.PoseLandmark.RIGHT_WRIST].x, lm[mp_pose.PoseLandmark.RIGHT_WRIST].y]
+                ba, bc = np.array(s) - np.array(e), np.array(wrist_coords) - np.array(e)
                 raw_angle = np.degrees(np.arccos(np.clip(np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc)), -1.0, 1.0)))
 
                 if is_downswing and lag_at_top is None: lag_at_top = int(raw_angle)
