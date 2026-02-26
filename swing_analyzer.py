@@ -152,11 +152,37 @@ def analyze_diagnostic_swing(video_path, club_type=None):
 
     return feedback, web_tfile.name
 
-def analyze_wrist_action(video_path):
+# 1. Update the signature to accept the new data from web_coach
+def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     cap = cv2.VideoCapture(video_path)
+    
+    # 2. CRITICAL: Jump the video to the frame the user selected
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
+    
+    # --- PERSISTENT DATA ---
+    lag_angles = []
+    wrist_trail = []
+    max_lag_sharpness = 180.0
+    
+    # NEW STATE VARIABLES
+    is_downswing = False
+    max_wrist_height = 1.0  
+    lag_at_top = None
+    lag_at_impact = None
+    impact_locked = False
+    
+    # --- CORRIDOR DATA ---
+    backswing_top_y = None
+    backswing_bot_y = None
+    forward_top_y = None
+    forward_bot_y = None
+    
+    # Use the passed-in ball_coords if they exist, otherwise keep it None
+    v_ball_pos = ball_coords
     
     # --- PERSISTENT DATA ---
     lag_angles = []
@@ -202,34 +228,33 @@ def analyze_wrist_action(video_path):
                 p3 = (int(wrist[0] * width), int(wrist[1] * height))
 
                 # --- VIRTUAL BALL & IMPACT CONE ---
-                # 1. Capture the 'Virtual Ball' and Plane Heights at address
-                # We use 'wrist_confidence' which we define right here
-                wrist_confidence = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].visibility
-                
-                # 1. Capture the 'Virtual Ball' (Apex) at address
-                if v_ball_pos is None and wrist_confidence > 0.8:
-                    # Find the stance midpoint
-                    r_foot_x = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].x
-                    l_foot_x = landmarks[mp_pose.PoseLandmark.LEFT_FOOT_INDEX].x
-                    stance_center_x = (r_foot_x + l_foot_x) / 2
-                    
-                    # TARGET-SIDE SHIFT: 
-                    # We ADD to move it toward the target (right side of your video).
-                    # '0.12' should put it right near that front foot line.
-                    v_ball_x_norm = stance_center_x + 0.12  
-                    
-                    # DEPTH NUDGE:
-                    # Raising the ball Y slightly (subtracting pixels) helps 
-                    # the cone match the 'waist-to-shoulder' plane better.
-                    foot_y = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX].y
-                    v_ball_y = int((foot_y - 0.05) * height) 
-
-                    v_ball_x = int(v_ball_x_norm * width)
-                    v_ball_pos = (v_ball_x, v_ball_y)
-                    
-                    # Body-matched plane heights
+                # Use the landmarks from the FIRST processed frame to set the cone width
+                if backswing_top_y is None:
+                    # Anchor the 'opening' of the cone to your shoulders and hips
                     backswing_top_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * height)
                     forward_bot_y = int(landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * height)
+                    
+                    # If for some reason ball_coords didn't come through, 
+                    # set a safe fallback so the script doesn't crash
+                    if v_ball_pos is None:
+                        v_ball_pos = (int(width * 0.7), int(height * 0.8))
+
+                # Now draw using the user's CLICK (v_ball_pos)
+                if v_ball_pos is not None:
+                    overlay = frame.copy()
+                    
+                    pts = np.array([
+                        [v_ball_pos[0], v_ball_pos[1]], # Apex (Where you clicked!)
+                        [0, backswing_top_y - 120],     # Shoulder Plane Ceiling
+                        [0, forward_bot_y + 80]         # Hip Slot Floor
+                    ], np.int32)
+
+                    cv2.fillPoly(overlay, [pts], (220, 220, 220))
+                    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+                    
+                    # Boundary Lines (Neon Blue and Green)
+                    cv2.line(frame, v_ball_pos, (0, backswing_top_y - 120), (255, 255, 0), 3) 
+                    cv2.line(frame, v_ball_pos, (0, forward_bot_y + 80), (0, 255, 0), 3)
 
                 # 2. Draw the Angled Cone (The Underlay)
                 if v_ball_pos is not None:
@@ -408,6 +433,7 @@ def analyze_wrist_action(video_path):
     )
 
     return summary, web_tfile.name
+
 
 
 
