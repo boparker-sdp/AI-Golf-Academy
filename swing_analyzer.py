@@ -218,7 +218,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
         
             # --- 2. INSIDE THE LOOP (Process Pose) ---
             # ... (Landmark detection happens here) ...
-        
+                    
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
             
@@ -234,39 +234,39 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
                     backswing_top_y = int(elbow[1] * height)
                     forward_bot_y = int(wrist[1] * height)
 
-                # --- 3. DRAW THE CONE ---
-                # This now has the heights it needs to stay visible!
-                if v_ball_pos is not None and backswing_top_y is not None:
-                    overlay = frame.copy()
-                    pts = np.array([
-                        [v_ball_pos[0], v_ball_pos[1]], 
-                        [0, backswing_top_y - 120],     
-                        [0, forward_bot_y + 80]         
-                    ], np.int32)
-                
-                    cv2.fillPoly(overlay, [pts], (220, 220, 220))
-                    cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+            # --- 3. DRAW THE CONE ---
+            # This now has the heights it needs to stay visible!
+            if v_ball_pos is not None and backswing_top_y is not None:
+                overlay = frame.copy()
+                pts = np.array([
+                    [v_ball_pos[0], v_ball_pos[1]], 
+                    [0, backswing_top_y - 120],     
+                    [0, forward_bot_y + 80]         
+                ], np.int32)
             
-                    # Draw the Boundary Lines in Black
-                    cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
-                    cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
+                cv2.fillPoly(overlay, [pts], (220, 220, 220))
+                cv2.addWeighted(overlay, 0.25, frame, 0.75, 0, frame)
+        
+                # Draw the Boundary Lines in Black
+                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, backswing_top_y - 120), (0, 0, 0), 2, cv2.LINE_AA) 
+                cv2.line(frame, (v_ball_pos[0], v_ball_pos[1]), (0, forward_bot_y + 80), (0, 0, 0), 2, cv2.LINE_AA)   
 
-                    # Labels
-                    cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                    cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
-                    
-                    # Small white dot at the ball position
-                    cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
-
-                # --- TRANSITION DETECTION ---
-                curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
-                if not is_downswing:
-                    if curr_wrist_y < max_wrist_height:
-                        max_wrist_height = curr_wrist_y 
-                    elif curr_wrist_y > (max_wrist_height + 0.05):
-                        is_downswing = True
+                # Labels
+                cv2.putText(frame, "PLANE CEILING", (50, backswing_top_y - 150), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                cv2.putText(frame, "THE SLOT", (50, forward_bot_y + 110), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 1, cv2.LINE_AA)
+                
+                # Small white dot at the ball position
+                cv2.circle(frame, v_ball_pos, 5, (255, 255, 255), -1)
+                
+            # --- TRANSITION DETECTION ---
+            curr_wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
+            if not is_downswing:
+                if curr_wrist_y < max_wrist_height:
+                    max_wrist_height = curr_wrist_y 
+                elif curr_wrist_y > (max_wrist_height + 0.05):
+                    is_downswing = True
 
                 # B. ONLY add to trail during Backswing
                 if not is_downswing and wrist_confidence > 0.8:
@@ -382,6 +382,7 @@ def analyze_wrist_action(video_path, ball_coords=None, start_frame=0):
     )
 
     return summary, web_tfile.name
+
 
 
 
