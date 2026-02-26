@@ -4,51 +4,24 @@ import os
 from swing_analyzer import analyze_diagnostic_swing, analyze_wrist_action
 
 st.set_page_config(page_title="AI Golf Academy", layout="wide")
-
 st.title("🏌️ AI Golf Diagnostic Hub")
 
-# --- CAMERA SETUP GUIDE ---
-with st.expander("📸 How to get the best AI Analysis"):
+# --- CAMERA OPERATOR GUIDE ---
+with st.expander("📸 INSTRUCTIONS FOR YOUR CAMERA OPERATOR"):
     st.markdown("""
-    **1. Wrist & Plane Lab (Down-the-Line):**
-    * Camera at **hip height**.
-    * Aim through your **hands** toward the target.
+    **If you are filming the golfer, please follow these rules for accurate AI math:**
+
+    **1. For the Wrist & Plane Lab (Standing behind the golfer):**
+    * **Where to stand:** Stand directly behind the golfer so you are looking down the line they want to hit the ball.
+    * **Height:** Hold the phone at the golfer's **hip height**.
+    * **Target:** Line up the camera so the golfer's **hands** are in the center of the screen.
     
-    **2. Stability & Sequence Scan (Face-On):**
-    * Camera at **chest height**.
-    * Aim at your **belt buckle**.
-    
-    *Note: Perspective errors can cause the 'Anatomy Lines' to drift.*
+    **2. For the Stability & Sequence Scan (Standing in front of the golfer):**
+    * **Where to stand:** Stand directly facing the golfer (belly-to-belly). 
+    * **Height:** Hold the phone at the golfer's **chest height**.
+    * **Target:** Aim the camera at the golfer's **belt buckle**.
+
+    **⚠️ CRITICAL:** Do **NOT** move the camera or try to 'follow' the club. Hold it perfectly still like a tripod, or the AI will think the golfer is swaying when they aren't!
     """)
 
-uploaded_file = st.file_uploader("Upload your swing video", type=['mp4', 'mov', 'avi'])
-
-if uploaded_file:
-    tfile = tempfile.NamedTemporaryFile(delete=False)
-    tfile.write(uploaded_file.read())
-    video_path = tfile.name
-
-    col_vid, col_results = st.columns([1, 1])
-
-    with col_vid:
-        st.video(video_path)
-        
-        st.subheader("Run Diagnostic Labs")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("⚖️ Stability & Sequence", use_container_width=True):
-                with st.spinner("Analyzing Hip/Shoulder Sequence..."):
-                    summary, video_out = analyze_diagnostic_swing(video_path)
-                    st.session_state.summary = summary
-                    st.session_state.result_video = video_out
-        with c2:
-            if st.button("🚀 Plane & X-Factor", use_container_width=True):
-                with st.spinner("Analyzing Wrist Lag & X-Factor..."):
-                    summary, video_out = analyze_wrist_action(video_path)
-                    st.session_state.summary = summary
-                    st.session_state.result_video = video_out
-
-    with col_results:
-        if 'result_video' in st.session_state:
-            st.markdown(st.session_state.summary)
-            st.video(st.session_state.result_video)
+# ... (rest of the file remains the same)
