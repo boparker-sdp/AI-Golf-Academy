@@ -72,7 +72,7 @@ if uploaded_file is not None:
         # This displays the image and waits for a click
         coords = streamlit_image_coordinates(img, key="ball_picker")
         
-       if coords:
+        if coords:
             # 1. Scaling Math (Keep this!)
             original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -215,6 +215,7 @@ if uploaded_file is not None:
         st.session_state.coach_report = None
         st.session_state.chat_messages = []
         st.rerun()
+
 
 
 
