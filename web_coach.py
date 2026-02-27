@@ -6,15 +6,15 @@ from swing_analyzer import analyze_foundation_sequence, analyze_swing_plane
 st.set_page_config(page_title="AI Golf Academy", layout="wide")
 st.title("🏌️ AI Golf Diagnostic Hub")
 
-# --- STEP 1: DISCOVERY ---
+# STEP 1: SHOT RESULTS
 st.subheader("📝 Step 1: Shot Results")
 c_flight, c_strike = st.columns(2)
 with c_flight:
-    ball_flight = st.selectbox("Ball Flight", ["Straight", "Straight Pull (Left)", "Slice (Curves Right)", "Hook", "Push"])
+    ball_flight = st.selectbox("Ball Flight", ["Straight/Target", "Straight Pull (Left)", "Slice (Fade Right)", "Hook", "Push"])
 with c_strike:
     strike_quality = st.selectbox("Strike Quality", ["Flush/Clean", "Fat (Heavy)", "Thin (Bladed)", "Shank"])
 
-# --- STEP 2: UPLOAD ---
+# STEP 2: UPLOAD
 uploaded_file = st.file_uploader("Step 2: Upload Video", type=['mp4', 'mov', 'avi'])
 
 if uploaded_file:
@@ -28,17 +28,21 @@ if uploaded_file:
 
     with col_vid:
         st.subheader("📋 Coach's Scout Report")
-        if ball_flight == "Straight Pull (Left)" and strike_quality == "Flush/Clean":
-            st.info("Observation: Excellent contact, but your timing is 'bunched up.' Your shoulders are racing ahead of your hips. Check the Foundation Lab.")
-        elif strike_quality == "Fat (Heavy)":
-            st.error("Observation: You're hitting the ground early. We need to check your Head Stability for downward dips.")
         
+        # Immediate High-Level Feedback
+        if strike_quality == "Flush/Clean" and ball_flight == "Straight Pull (Left)":
+            st.info("Excellent contact. Since you didn't hit it fat, your head is stable. The pull is a timing issue: your shoulders are outrunning your hips. Check the Foundation Lab.")
+        elif strike_quality == "Fat (Heavy)":
+            st.error("You're hitting the ground early. This is usually caused by a head dip. Check the Stability boxes in the Foundation Lab.")
+        else:
+            st.info(f"Analyzing your {ball_flight} shot with a {strike_quality} strike. Run a lab to see the biomechanics.")
+
         st.video(st.session_state.video_path)
         c1, c2 = st.columns(2)
-        if c1.button("⚖️ Foundation"):
+        if c1.button("⚖️ Foundation & Sequence", use_container_width=True):
             summary, v_out = analyze_foundation_sequence(st.session_state.video_path)
             st.session_state.summary, st.session_state.v_out, st.session_state.mode = summary, v_out, "Foundation"
-        if c2.button("🚀 Swing Plane"):
+        if c2.button("🚀 Swing Plane Lab", use_container_width=True):
             summary, v_out = analyze_swing_plane(st.session_state.video_path)
             st.session_state.summary, st.session_state.v_out, st.session_state.mode = summary, v_out, "Swing Plane"
 
@@ -48,17 +52,17 @@ if uploaded_file:
             st.video(st.session_state.v_out)
             st.markdown(st.session_state.summary)
             
-            # Contextual Deep Dive
             if st.session_state.mode == "Foundation":
-                st.info("Coach's Note: If that Head Box turned RED, that's why you're hitting it fat. Stay tall and rotate like a barber pole.")
+                st.info("Coach's Deep Dive: Look at the Head Box. If it turns RED during the downswing, your head is dipping into the ball, causing that fat strike.")
             
-            col_save, col_notes = st.columns(2)
+            col_save1, col_save2 = st.columns(2)
             with open(st.session_state.v_out, "rb") as f:
-                col_save.download_button("💾 Save Video", f, "swing.mp4")
+                col_save1.download_button("💾 Save Video", f, "swing_analysis.mp4")
+            st.button("💾 Save Notes", on_click=lambda: st.toast("Notes saved!"))
 
-    # --- CHAT ENGINE ---
+    # CHAT SECTION
     st.divider()
-    st.subheader("💬 AI Coaching Chat")
+    st.subheader("💬 Continuous Coaching (Chat)")
     if "chat_history" not in st.session_state: st.session_state.chat_history = []
     
     chat_container = st.container(height=400)
@@ -70,10 +74,10 @@ if uploaded_file:
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
         with st.chat_message("assistant"):
-            if "drill" in prompt.lower():
-                response = f"To fix that {ball_flight}, try the 'Step-Through' drill: step toward the target with your lead foot before you swing down. This forces your hips to lead!"
+            if "drill" in prompt.lower() or "stretch" in prompt.lower():
+                response = f"To fix that {ball_flight}, try the 'Back-to-Target' drill: keep your back facing the target a split second longer during the start of the downswing. This lets your hips lead the way!"
             else:
-                response = f"I'm looking at your {st.session_state.mode} data. Does it feel like your shoulders are rushing?"
+                response = f"I'm analyzing your {strike_quality} strike. Does it feel like you're losing your posture at impact?"
             st.markdown(response)
             st.session_state.chat_history.append({"role": "assistant", "content": response})
         st.rerun()
