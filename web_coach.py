@@ -6,7 +6,7 @@ from swing_analyzer import analyze_foundation_sequence, analyze_swing_plane
 st.set_page_config(page_title="AI Golf Academy", layout="wide")
 st.title("🏌️ AI Golf Diagnostic Hub")
 
-# --- STEP 1: FULL DISCOVERY ---
+# --- STEP 1: SHOT RESULTS ---
 st.subheader("📝 Step 1: Shot Results")
 c_flight, c_strike = st.columns(2)
 
@@ -38,12 +38,6 @@ if uploaded_file:
         st.subheader("📋 Coach's Scout Report")
         st.video(st.session_state.video_path)
         
-        # Informed Scout Report
-        if strike_quality == "Fat (Heavy)":
-            st.error("Targeting Low Point: Let's check Head Stability in the Foundation Lab.")
-        elif ball_flight == "Straight Pull (Left)":
-            st.warning("Targeting Path: Let's check Sequence Stretch in the Foundation Lab.")
-        
         c1, c2 = st.columns(2)
         if c1.button("⚖️ Foundation & Sequence", use_container_width=True):
             summary, v_out = analyze_foundation_sequence(st.session_state.video_path)
@@ -57,42 +51,52 @@ if uploaded_file:
             st.subheader(f"AI Results: {st.session_state.mode}")
             st.video(st.session_state.v_out)
             
-            # --- THE "SMARTER" DEEP DIVE ---
             st.subheader("📖 The Coach's Plain-English Breakdown")
-            
             if st.session_state.mode == "Foundation":
-                # Logic: If Flush but Head moved, don't talk about Fat shots.
                 if strike_quality == "Flush/Clean" and ball_flight == "Straight Pull (Left)":
-                    st.info(f"Great contact! Since the strike was **{strike_quality}**, your head movement isn't hurting your low-point yet. "
-                            f"However, we need to talk about that **{ball_flight}**. Your 'Stretch' score is the key here. "
-                            "Even with a stable head, if your shoulders fire at the same time as your hips, you 'push' the club left. "
-                            "Focus on feeling your hips turn toward the target while your back stays facing it for a split second longer.")
-                elif strike_quality == "Fat (Heavy)":
-                    st.info("You felt that one in the turf. Because you hit it **Fat**, that red Head Box is the smoking gun. "
-                            "You're dipping into the ball, which moves your 'swing circle' into the ground too early.")
+                    st.info(f"The strike was **{strike_quality}**, so your low-point is solid. However, that **{ball_flight}** confirms your sequence is 'bunched up.'")
                 else:
-                    st.info(f"Analyzing your **{ball_flight}** and **{strike_quality}** strike. Look at the sequence timing...")
-            
-            else:
-                st.info(f"Looking at your **{ball_flight}**. Check the hand trail against the gray cone safely zone.")
+                    st.info(f"Analyzing your **{ball_flight}** and **{strike_quality}** strike...")
 
-    # --- THE "MEMORY" CHAT ---
+    # --- THE IMPROVED CHAT ENGINE ---
     st.divider()
-    st.subheader("💬 Continuous Coaching (Chat)")
-    if "chat_history" not in st.session_state: st.session_state.chat_history = []
+    st.subheader("💬 AI Coaching Chat")
     
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]): st.markdown(msg["content"])
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
 
-    if prompt := st.chat_input("Ask a follow-up..."):
+    # Display history in an expandable container to prevent "creaking"
+    chat_container = st.container(height=400)
+    with chat_container:
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Ask for specific drills..."):
         st.session_state.chat_history.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
-
+        
+        # --- DRILL GENERATION LOGIC ---
         with st.chat_message("assistant"):
-            # The AI now knows BOTH flight and strike
-            response = (f"Acknowledged. Since you hit it **{strike_quality}** but it went **{ball_flight}**, "
-                        "we know your low-point control is fine, but your direction is off. "
-                        "Let's focus on your hip-shoulder separation.")
+            if "drill" in prompt.lower() or "stretch" in prompt.lower() or "separate" in prompt.lower():
+                response = f"""
+                Acknowledged. To fix that **{ball_flight}** and increase your **Stretch Score**, we need to keep your shoulders from 'racing' the hips. 
+                
+                ### 🛠️ The "Step-Through" Drill
+                1. **Setup:** Take your normal stance with a mid-iron.
+                2. **The Backswing:** As you reach the top, keep your back facing the target.
+                3. **The Trigger:** Before you swing down, take a small step toward the target with your lead foot.
+                4. **The Feel:** This forces your hips to move first, creating that 'Stretch' you see in the lab.
+                
+                ### 🛠️ The "Pump" Drill
+                * Stop at the top of your swing.
+                * Move your hips toward the target 3 times while keeping your shoulders completely still.
+                * On the 4th pump, let the swing go.
+                
+                Does one of these feel like something you can try at the range?
+                """
+            else:
+                response = "I'm analyzing that. Can you tell me if you feel more 'stuck' in your hips or 'rushed' in your shoulders?"
+            
             st.markdown(response)
             st.session_state.chat_history.append({"role": "assistant", "content": response})
         st.rerun()
