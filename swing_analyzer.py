@@ -34,13 +34,12 @@ def analyze_foundation_sequence(video_path):
                     if lm[16].y < max_w_y: max_w_y = lm[16].y
                     elif lm[16].y > (max_w_y + 0.05): is_downswing = True
 
-                # Stability Logic (Head Vertical, Hip Lateral)
+                # Stability Logic
                 head_drift = abs(lm[0].y - addr_head_y)
                 hip_drift = abs(((lm[23].x + lm[24].x) / 2) - addr_hip_x)
                 head_stable = head_drift < 0.04
                 hip_stable = hip_drift < 0.05
                 
-                # Sequence Stretch (X-Factor)
                 curr_s = int(abs(abs(lm[11].x - lm[12].x) - abs(lm[23].x - lm[24].x)) * 100)
                 if curr_s > max_stretch: max_stretch = curr_s
 
@@ -48,7 +47,7 @@ def analyze_foundation_sequence(video_path):
                     h_w, s_w = abs(lm[23].x - lm[24].x), abs(lm[11].x - lm[12].x)
                     seq_status = "SHOULDER SPIN" if s_w < (h_w * 0.85) else "PRO HIP LEAD"
 
-                # Visual Overlays
+                # Stability Visuals
                 h_col = (0, 255, 0) if head_stable else (0, 0, 255)
                 hx, hy = int(lm[0].x * w), int(lm[0].y * h)
                 cv2.rectangle(frame, (hx-30, int(addr_head_y*h)-30), (hx+30, int(addr_head_y*h)+30), h_col, 2)
@@ -58,7 +57,6 @@ def analyze_foundation_sequence(video_path):
                 hpcy = int(((lm[23].y + lm[24].y) / 2) * h)
                 cv2.rectangle(frame, (hpcx-40, hpcy-40), (hpcx+40, hpcy+40), hip_col, 2)
 
-                # PERSISTENT LABELS
                 cv2.putText(frame, f"MAX STRETCH: {max_stretch}", (50, 60), 2, fs, (255, 0, 255), thick)
                 cv2.putText(frame, f"HEAD: {'OK' if head_stable else 'DIP'}", (w-300, 60), 2, fs, h_col, thick)
 
@@ -113,6 +111,13 @@ def analyze_swing_plane(video_path):
                 if is_downswing and lag_top is None: lag_top = ang
                 if is_downswing and lm[16].y > 0.5 and lag_impact is None: lag_impact = ang
 
-                # PERMANENT LABELS
                 if lag_top:
-                    cv2.putText(frame, f"TOP HINGE: {
+                    cv2.putText(frame, f"TOP HINGE: {lag_top}deg", (50, 60), 2, fs, (0,255,255), thick)
+                if lag_impact:
+                    cv2.putText(frame, f"IMPACT HINGE: {lag_impact}deg", (50, 120), 2, fs, (0,255,255), thick)
+
+            out.write(frame)
+    cap.release(); out.release()
+    web_p = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+    subprocess.run(['ffmpeg', '-y', '-i', raw_path, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', web_p.name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return f"### 🚀 Swing Plane Lab\nTop Hinge: {lag_top}° | Impact Hinge: {lag_impact}°", web_p.name
