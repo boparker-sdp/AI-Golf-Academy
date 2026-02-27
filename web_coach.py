@@ -24,7 +24,6 @@ with col_setup:
 uploaded_file = st.file_uploader("Step 2: Upload your swing video", type=['mp4', 'mov', 'avi'])
 
 if uploaded_file:
-    # Session State Management for Video Path
     if 'video_path' not in st.session_state or uploaded_file.name != st.session_state.get('last_uploaded'):
         tfile = tempfile.NamedTemporaryFile(delete=False)
         tfile.write(uploaded_file.read())
@@ -35,8 +34,6 @@ if uploaded_file:
 
     with col_vid:
         st.subheader("📋 Coach's Scout Report")
-        
-        # Informed Scout Report based on Ball Flight
         if ball_flight == "Fat (Hit Ground Early)":
             st.error("**The Dip Detector.** Fat shots are usually caused by your head dropping or your hips swaying. Run the **Foundation Lab** to check your Stability Boxes.")
         elif ball_flight == "Straight Pull (Left)":
@@ -62,8 +59,37 @@ if uploaded_file:
             st.video(st.session_state.v_out)
             st.markdown(st.session_state.summary)
             
-            # --- CONTEXTUAL STABILITY ANALYSIS ---
+            # --- FIXED TRIPLE-QUOTED BLOCK ---
             if st.session_state.mode == "Foundation":
-                st.info("""
-                **Coach's Deep Dive (Stability):**
-                * **Head Box:**
+                st.info("**Coach's Deep Dive (Stability):**\n\n"
+                        "* **Head Box:** If this turns RED, your head moved vertically. A downward dip is the #1 cause of hitting irons 'Fat'.\n"
+                        "* **Hip Box:** If this turns RED, you are 'Swaying' (sliding) instead of 'Posting' (rotating).\n"
+                        "* **Stretch:** Remember, a Stretch score under 20 indicates an arm-only swing.")
+            else:
+                st.info("**Coach's Deep Dive (Plane):** Look at your hand trail relative to the gray cone. Stay 'In the Slot' to avoid the pull/slice.")
+
+            col_s1, col_s2 = st.columns(2)
+            with open(st.session_state.v_out, "rb") as file:
+                col_s1.download_button("💾 Save Analysis Video", data=file, file_name="golf_analysis.mp4", mime="video/mp4")
+            if col_s2.button("💾 Save Coach's Notes"):
+                st.toast("Notes saved to your session log!")
+
+    # 3. INTERACTIVE CHAT LAB
+    st.divider()
+    st.subheader("💬 Chat with your AI Coach")
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Ask about your Fat shots or Head Stability..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            response = f"Since you mentioned a **{ball_flight}**, focus on keeping your lead knee stable. If your head drops, your low point shifts behind the ball. Try the 'Feet Together Drill' to find your balance."
+            st.markdown(response)
+            st.session_state.messages.append({"role": "assistant", "content": response})
