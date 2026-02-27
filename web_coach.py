@@ -6,21 +6,14 @@ from swing_analyzer import analyze_foundation_sequence, analyze_swing_plane
 st.set_page_config(page_title="AI Golf Academy", layout="wide")
 st.title("🏌️ AI Golf Diagnostic Hub")
 
-# 1. INITIAL DISCOVERY
+# --- INITIAL DISCOVERY ---
 st.subheader("📝 Step 1: Tell the Coach what happened")
-col_input, col_setup = st.columns([1, 1])
+ball_flight = st.selectbox(
+    "What was the ball flight of this specific swing?",
+    ["Unknown/Not Sure", "Straight Pull (Left)", "Slice (Curves Right)", "Straight/Target", "Fat (Hit Ground Early)"]
+)
 
-with col_input:
-    ball_flight = st.selectbox(
-        "What was the ball flight of this specific swing?",
-        ["Unknown/Not Sure", "Straight Pull (Left)", "Slice (Curves Right)", "Straight/Target", "Fat (Hit Ground Early)"]
-    )
-
-with col_setup:
-    with st.expander("📸 Proper Camera Setup"):
-        st.write("FO (Stability): Chest height, at buckle. | DTL (Plane): Hip height, through hands.")
-
-# 2. FILE UPLOAD
+# --- FILE UPLOAD ---
 uploaded_file = st.file_uploader("Step 2: Upload your swing video", type=['mp4', 'mov', 'avi'])
 
 if uploaded_file:
@@ -34,15 +27,6 @@ if uploaded_file:
 
     with col_vid:
         st.subheader("📋 Coach's Scout Report")
-        if ball_flight == "Fat (Hit Ground Early)":
-            st.error("**The Dip Detector.** Fat shots are usually caused by your head dropping or your hips swaying. Run the **Foundation Lab** to check your Stability Boxes.")
-        elif ball_flight == "Straight Pull (Left)":
-            st.warning("**The Shoulder-Push.** Your path is likely 'Out-to-In'. Run the **Foundation Lab** to check your Sequence Stretch.")
-        elif ball_flight == "Slice (Curves Right)":
-            st.warning("**The Over-the-Top.** This is a plane issue. Run the **Swing Plane Lab** to see if you are 'climbing' over the cone.")
-        else:
-            st.info("Analyzing geometry. Run both labs to find your power leaks.")
-
         st.video(st.session_state.video_path)
         
         c1, c2 = st.columns(2)
@@ -59,37 +43,50 @@ if uploaded_file:
             st.video(st.session_state.v_out)
             st.markdown(st.session_state.summary)
             
-            # --- FIXED TRIPLE-QUOTED BLOCK ---
+            # --- THE "NO-PHD" DEEP DIVE ---
+            st.subheader("📖 The Coach's Plain-English Breakdown")
             if st.session_state.mode == "Foundation":
-                st.info("**Coach's Deep Dive (Stability):**\n\n"
-                        "* **Head Box:** If this turns RED, your head moved vertically. A downward dip is the #1 cause of hitting irons 'Fat'.\n"
-                        "* **Hip Box:** If this turns RED, you are 'Swaying' (sliding) instead of 'Posting' (rotating).\n"
-                        "* **Stretch:** Remember, a Stretch score under 20 indicates an arm-only swing.")
+                st.info(f"Since your ball was a **{ball_flight}**, let's look at your body's timing. "
+                        "A 'Fat' shot happens because your body is literally getting closer to the ground during the swing. "
+                        "If that Head Box turned red, it means you're 'dipping' your chest downward—this forces the club to hit the grass "
+                        "before it ever reaches the ball. To fix this, you need to feel like your head is pinned against a wall behind you "
+                        "so you stay tall and rotate like a spinning top, rather than collapsing downward.")
             else:
-                st.info("**Coach's Deep Dive (Plane):** Look at your hand trail relative to the gray cone. Stay 'In the Slot' to avoid the pull/slice.")
+                st.info(f"You mentioned a **{ball_flight}**. In the video, look at that gray cone—that's your 'Safe Zone.' "
+                        "If your hands stay above that top black line, the club is coming from 'outside' your body. "
+                        "Think of it like trying to pull a door shut from the wrong side; it forces the club to swipe across the ball. "
+                        "If you keep your hands inside that gray area, the club can swing toward the target instead of across it.")
 
             col_s1, col_s2 = st.columns(2)
             with open(st.session_state.v_out, "rb") as file:
-                col_s1.download_button("💾 Save Analysis Video", data=file, file_name="golf_analysis.mp4", mime="video/mp4")
-            if col_s2.button("💾 Save Coach's Notes"):
-                st.toast("Notes saved to your session log!")
+                col_s1.download_button("💾 Save Marked Video", data=file, file_name="golf_analysis.mp4", mime="video/mp4")
+            st.button("💾 Save Coach's Notes", on_click=lambda: st.toast("Notes saved!"))
 
-    # 3. INTERACTIVE CHAT LAB
+    # --- THE "MEMORY" CHAT LAB ---
     st.divider()
-    st.subheader("💬 Chat with your AI Coach")
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    st.subheader("💬 Continuous Coaching (Chat)")
+    
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
 
-    for msg in st.session_state.messages:
+    # Display past messages
+    for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input("Ask about your Fat shots or Head Stability..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    if prompt := st.chat_input("Ask a follow-up or ask for a specific drill..."):
+        # 1. Save User Message
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
+        # 2. Generate Assistant Response (Mimicking a conversation)
         with st.chat_message("assistant"):
-            response = f"Since you mentioned a **{ball_flight}**, focus on keeping your lead knee stable. If your head drops, your low point shifts behind the ball. Try the 'Feet Together Drill' to find your balance."
+            # Here, we'd normally pass st.session_state.chat_history to Gemini
+            response = (f"That's a great follow-up. Since we just talked about your {st.session_state.mode} "
+                        f"and your {ball_flight}, let's dig deeper into that. If you're feeling 'stuck,' "
+                        "it's because your hips aren't giving your arms enough room. Does that feel like what's happening?")
             st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state.chat_history.append({"role": "assistant", "content": response})
+        
+        st.rerun() # Forces the UI to update with the new message
