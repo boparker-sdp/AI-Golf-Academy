@@ -6,17 +6,22 @@ from swing_analyzer import analyze_foundation_sequence, analyze_swing_plane
 st.set_page_config(page_title="AI Golf Academy", layout="wide")
 st.title("🏌️ AI Golf Diagnostic Hub")
 
-# 1. Setup Instructions
-with st.expander("📸 INSTRUCTIONS FOR YOUR CAMERA OPERATOR"):
-    st.markdown("""
-    **To ensure the AI math is accurate, please follow these rules:**
-    * **Down-the-Line (Swing Plane):** Stand behind the golfer, phone at **hip height**, aim through **hands**.
-    * **Face-On (Foundation):** Stand facing the golfer, phone at **chest height**, aim at **belt buckle**.
-    * **STILLNESS:** Do NOT move the camera to 'follow' the club.
-    """)
+# 1. INITIAL DISCOVERY (The informed starting point)
+st.subheader("📝 Step 1: Tell the Coach what happened")
+col_input, col_setup = st.columns([1, 1])
 
-# 2. Upload
-uploaded_file = st.file_uploader("Upload your swing video", type=['mp4', 'mov', 'avi'])
+with col_input:
+    ball_flight = st.selectbox(
+        "What was the ball flight of this specific swing?",
+        ["Unknown/Not Sure", "Straight Pull (Left)", "Slice (Curves Right)", "Straight/Target", "Hook (Curves Left)"]
+    )
+
+with col_setup:
+    with st.expander("📸 Proper Camera Setup"):
+        st.write("FO: Chest height, at buckle. | DTL: Hip height, through hands.")
+
+# 2. FILE UPLOAD
+uploaded_file = st.file_uploader("Step 2: Upload your swing video", type=['mp4', 'mov', 'avi'])
 
 if uploaded_file:
     tfile = tempfile.NamedTemporaryFile(delete=False)
@@ -26,12 +31,18 @@ if uploaded_file:
     col_vid, col_results = st.columns([1, 1])
 
     with col_vid:
+        # --- INFORMED SCOUT REPORT ---
         st.subheader("📋 Coach's Scout Report")
-        st.info("""
-        **Visual Assessment:** I detect an **Out-to-In** path. 
-        * If you are **Slicing** (curving right), run the **Swing Plane Lab**. 
-        * If you are **Pulling** (straight left), run the **Foundation Lab** to check your Sequence Stretch.
-        """)
+        
+        if ball_flight == "Straight Pull (Left)":
+            st.warning("**Diagnosis: The Shoulder-Push.** Since you pulled it straight left, your path is 'Out-to-In'. This is usually caused by the upper body firing before the hips. Run the **Foundation Lab** to check your Sequence Stretch.")
+        elif ball_flight == "Slice (Curves Right)":
+            st.warning("**Diagnosis: The Over-the-Top.** A slice means the club is wiping across the ball. This is usually a plane issue. Run the **Swing Plane Lab** to see if you are 'climbing' over the cone.")
+        elif ball_flight == "Straight/Target":
+            st.success("**Diagnosis: Pure Strike.** You found the slot! Run the labs to see your 'Pro Blueprint' so you can repeat this feeling.")
+        else:
+            st.info("**Diagnosis: Analyzing Geometry.** Without ball flight data, I will look for 'Out-to-In' movement. Run both labs to find your power leaks.")
+
         st.video(video_path)
         
         c1, c2 = st.columns(2)
@@ -48,37 +59,15 @@ if uploaded_file:
             st.markdown(st.session_state.summary)
             st.video(st.session_state.v_out)
             
-            # --- THE BINARY DIAGNOSTIC ---
-            st.divider()
-            with st.expander("🔬 UNDERSTANDING YOUR 'OUT-TO-IN' PATH"):
-                t1, t2 = st.tabs(["The Slice (Vertical)", "The Pull (Horizontal)"])
-                with t1:
-                    st.error("**The Over-the-Top (Slice)**")
-                    st.write("Hands 'climb' over the plane. Look at the yellow trail in the **Swing Plane Lab**.")
-                with t2:
-                    st.error("**The Shoulder-Push (Pull)**")
-                    st.write("Low 'Stretch.' Shoulders fire with hips. Check your Stretch score in the **Foundation Lab**.")
+            # Contextual help based on ball flight
+            if ball_flight == "Straight Pull (Left)" and st.session_state.mode == "Foundation":
+                st.error("🚨 Focus: Your 'Stretch' score must be above 30 to stop the pull!")
 
-            st.success("💡 **Next Step:** Use the **Chat Function** below to ask the Coach for a set of drills to fix your specific error.")
-
-    # --- THE INTERACTIVE COACH ---
+    # 3. INTERACTIVE CHAT
     st.divider()
-    st.subheader("💬 Chat with your AI Coach")
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    if prompt := st.chat_input("Ask for drills or explain your results..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        with st.chat_message("assistant"):
-            # This is where you would call the Gemini API with the lab results as context
-            context = f"User is in {st.session_state.mode} mode. Results: {st.session_state.summary}"
-            response = "Based on your low Sequence Stretch and 'Shoulder-Push' pull, I recommend the **Step-Through Drill**: Take your stance, and as you reach the top of your backswing, step your lead foot forward before starting your downswing. This forces your hips to lead. Would you like a video description of that drill?"
-            st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
+    st.subheader("💬 Follow-up with Coach")
+    query = st.chat_input("Ask for drills to fix your specific ball flight...")
+    if query:
+        st.write(f"**You:** {query}")
+        # Logic here to feed ball_flight + summary into the response
+        st.write(f"**AI Coach:** Since you're dealing with a **{ball_flight}**, your primary focus in the {st.session_state.mode} should be...")
