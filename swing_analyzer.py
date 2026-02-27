@@ -29,34 +29,27 @@ def analyze_foundation_sequence(video_path):
                 if addr_head_y is None:
                     addr_head_y, addr_hip_x = lm[0].y, (lm[23].x + lm[24].x) / 2
 
-                # Detect Downswing Trigger
                 if not is_downswing:
                     if lm[16].y < max_w_y: max_w_y = lm[16].y
                     elif lm[16].y > (max_w_y + 0.05): is_downswing = True
 
-                # Sequence Stretch (X-Factor) - Higher is better coil
-                stretch = int(abs(abs(lm[11].x - lm[12].x) - abs(lm[23].x - lm[24].x)) * 100)
-                if stretch > max_stretch: max_stretch = stretch
+                # --- STRETCH LOGIC: Capture and Hold Max ---
+                current_stretch = int(abs(abs(lm[11].x - lm[12].x) - abs(lm[23].x - lm[24].x)) * 100)
+                if current_stretch > max_stretch: 
+                    max_stretch = current_stretch
 
                 if is_downswing:
                     h_w, s_w = abs(lm[23].x - lm[24].x), abs(lm[11].x - lm[12].x)
                     seq_status = "SHOULDER SPIN" if s_w < (h_w * 0.85) else "PRO HIP LEAD"
 
-                # OVERLAYS - Sequence Stretch (X-Factor)
-                label_s = f"STRETCH: {stretch}"
+                # OVERLAYS: Show the highest stretch achieved
+                label_s = f"MAX STRETCH: {max_stretch}"
                 cv2.putText(frame, label_s, (50, int(h*0.1)), 2, fs*1.2, (0,0,0), thick+2)
                 cv2.putText(frame, label_s, (50, int(h*0.1)), 2, fs*1.2, (255, 0, 255), thick)
                 
-                # Sequence Label
                 label_q = f"SEQ: {seq_status}"
                 cv2.putText(frame, label_q, (50, int(h*0.18)), 2, fs, (0,0,0), thick+2)
                 cv2.putText(frame, label_q, (50, int(h*0.18)), 2, fs, (255, 255, 0), thick)
-                
-                # Stability Check (FIXED SYNTAX HERE)
-                head_err = abs(lm[0].y - addr_head_y)
-                h_col = (0, 255, 0) if head_err < 0.04 else (0, 0, 255)
-                cv2.putText(frame, "STABILITY", (50, int(h*0.25)), 2, fs, (0,0,0), thick+2)
-                cv2.putText(frame, "STABILITY", (50, int(h*0.25)), 2, fs, h_col, thick)
 
             out.write(frame)
     cap.release(); out.release()
@@ -65,7 +58,7 @@ def analyze_foundation_sequence(video_path):
     return f"### ⚖️ Foundation & Sequence\nMax Stretch: {max_stretch} | Sequence: {seq_status}", web_tfile.name
 
 def analyze_swing_plane(video_path):
-    """DOWN-THE-LINE: Focuses on Swing Plane (The Cone) and Hinge/Lag."""
+    """DOWN-THE-LINE: Focuses on Swing Plane and Frozen Hinge Snapshots."""
     cap = cv2.VideoCapture(video_path)
     h_pix, w_pix = int(cap.get(4)), int(cap.get(3))
     fps, fs, thick = int(cap.get(5)), h_pix/1000, int(2*(h_pix/1000))
@@ -85,7 +78,6 @@ def analyze_swing_plane(video_path):
                 lm = results.pose_landmarks.landmark
                 curr_rs, curr_re, curr_rw = (int(lm[12].x*w_pix), int(lm[12].y*h_pix)), (int(lm[14].x*w_pix), int(lm[14].y*h_pix)), (int(lm[16].x*w_pix), int(lm[16].y*h_pix))
                 
-                # Plane Lock at Address
                 if s_y_lock is None and lm[12].visibility > 0.8:
                     s_y_lock, h_y_lock = curr_rs[1]-180, int(lm[24].y*h_pix)-80
                     dx, dy = curr_rw[0]-curr_rs[0], curr_rw[1]-curr_rs[1]
@@ -97,7 +89,7 @@ def analyze_swing_plane(video_path):
                 bc = np.array([lm[16].x-lm[14].x, lm[16].y-lm[14].y])
                 ang = int(np.degrees(np.arccos(np.clip(np.dot(ba, bc)/(np.linalg.norm(ba)*np.linalg.norm(bc)), -1, 1))))
 
-                # Draw the DARKER Gray Cone (40% Opacity)
+                # Draw the DARKER Gray Cone
                 if frozen_apex:
                     overlay = frame.copy()
                     pts = np.array([[frozen_apex[0], frozen_apex[1]], [0, s_y_lock], [0, h_y_lock+120]], np.int32)
@@ -105,22 +97,28 @@ def analyze_swing_plane(video_path):
                     cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
                     cv2.line(frame, frozen_apex, (0, s_y_lock), (0,0,0), 2); cv2.line(frame, frozen_apex, (0, h_y_lock+120), (0,0,0), 2)
 
-                # Draw LIVE Hinge Angle (Scaled with Shadow)
-                cv2.putText(frame, f"{ang}deg", (curr_re[0]+30, curr_re[1]), 2, fs, (0,0,0), thick+2)
-                cv2.putText(frame, f"{ang}deg", (curr_re[0]+30, curr_re[1]), 2, fs, (0,255,255), thick)
-
-                # Track Downswing for Hinge Snapshots
+                # --- DYNAMIC WRIST TRAIL & DOWNSWING DETECTION ---
                 if not is_downswing:
                     if lm[16].y < max_h: max_h = lm[16].y
                     elif lm[16].y > (max_h + 0.05): is_downswing = True
                     wrist_trail.append(curr_rw)
                 
-                # Draw Wrist Trail (Yellow line showing path)
                 for i in range(1, len(wrist_trail)): 
                     cv2.line(frame, wrist_trail[i-1], wrist_trail[i], (0, 255, 255), 3)
 
+                # --- SNAPSHOT LOGIC ---
                 if is_downswing and lag_top is None: lag_top = ang
                 if is_downswing and lm[16].y > 0.5 and lag_impact is None: lag_impact = ang
+
+                # --- PERMANENT OVERLAYS (Wait for snapshots) ---
+                if lag_top:
+                    t_lbl = f"TOP HINGE: {lag_top}deg"
+                    cv2.putText(frame, t_lbl, (50, int(h_pix*0.1)), 2, fs, (0,0,0), thick+2)
+                    cv2.putText(frame, t_lbl, (50, int(h_pix*0.1)), 2, fs, (0,255,255), thick)
+                if lag_impact:
+                    i_lbl = f"IMPACT HINGE: {lag_impact}deg"
+                    cv2.putText(frame, i_lbl, (50, int(h_pix*0.18)), 2, fs, (0,0,0), thick+2)
+                    cv2.putText(frame, i_lbl, (50, int(h_pix*0.18)), 2, fs, (0,255,255), thick)
 
             out.write(frame)
     cap.release(); out.release()
