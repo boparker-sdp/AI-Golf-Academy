@@ -4,17 +4,19 @@ import mediapipe as mp
 import numpy as np
 import tempfile
 
-# STANDARD IMPORTS (The correct way for Streamlit Cloud)
-import mediapipe as mp
+# --- THE 2026 COMPATIBILITY FIX ---
+# We import the sub-modules directly to bypass the 'AttributeError'
+from mediapipe.python.solutions import pose as mp_pose
+from mediapipe.python.solutions import drawing_utils as mp_drawing
 
-# --- NEW ROBUST IMPORT LOGIC ---
-try:
-    import mediapipe.python.solutions.pose as mp_pose
-    import mediapipe.python.solutions.drawing_utils as mp_drawing
-except ImportError:
-    # Fallback for older/different builds
-    from mediapipe.solutions import pose as mp_pose
-    from mediapipe.solutions import drawing_utils as mp_drawing
+# Initialize the tracker
+pose = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=1,
+    smooth_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
 # Now initialize the pose object using the direct import
 pose = mp_pose.Pose(
@@ -93,6 +95,7 @@ def analyze_diagnostic_swing(video_path, club_type):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
