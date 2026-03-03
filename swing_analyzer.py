@@ -5,15 +5,19 @@ import numpy as np
 import tempfile
 
 # STANDARD IMPORTS (The correct way for Streamlit Cloud)
-mp_pose = mp.solutions.pose
-mp_drawing = mp.solutions.drawing_utils
+import mediapipe as mp
 
-# Initialize Pose Engine
+# --- REPLACING THE BROKEN LINE 8 ---
+# Use this instead of mp_pose = mp.solutions.pose
+mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(
-    min_detection_confidence=0.5, 
-    min_tracking_confidence=0.5,
-    model_complexity=1
+    static_image_mode=False,
+    model_complexity=1,
+    smooth_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
 )
+mp_drawing = mp.solutions.drawing_utils
 
 def analyze_diagnostic_swing(video_path, club_type):
     print("🦴 Booting up the X-Ray Diagnostic Lab...")
@@ -83,6 +87,7 @@ def analyze_diagnostic_swing(video_path, club_type):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
