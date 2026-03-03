@@ -1,19 +1,18 @@
 import os
 import cv2
-import mediapipe as mp
 import numpy as np
 import tempfile
+import mediapipe as mp
 
-# --- THE 2026 COMPATIBILITY FIX ---
-# We import the sub-modules directly to bypass the 'AttributeError'
-from mediapipe.python.solutions import pose as mp_pose
-from mediapipe.python.solutions import drawing_utils as mp_drawing
+# --- BRUTE FORCE IMPORT ---
+# This ignores the 'python.solutions' folder and goes to the root
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
 
-# Initialize the tracker
+# Initialize
 pose = mp_pose.Pose(
     static_image_mode=False,
     model_complexity=1,
-    smooth_landmarks=True,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
@@ -95,6 +94,7 @@ def analyze_diagnostic_swing(video_path, club_type):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
