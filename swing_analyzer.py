@@ -7,9 +7,16 @@ import tempfile
 # STANDARD IMPORTS (The correct way for Streamlit Cloud)
 import mediapipe as mp
 
-# --- REPLACING THE BROKEN LINE 8 ---
-# Use this instead of mp_pose = mp.solutions.pose
-mp_pose = mp.solutions.pose
+# --- NEW ROBUST IMPORT LOGIC ---
+try:
+    import mediapipe.python.solutions.pose as mp_pose
+    import mediapipe.python.solutions.drawing_utils as mp_drawing
+except ImportError:
+    # Fallback for older/different builds
+    from mediapipe.solutions import pose as mp_pose
+    from mediapipe.solutions import drawing_utils as mp_drawing
+
+# Now initialize the pose object using the direct import
 pose = mp_pose.Pose(
     static_image_mode=False,
     model_complexity=1,
@@ -17,7 +24,6 @@ pose = mp_pose.Pose(
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
-mp_drawing = mp.solutions.drawing_utils
 
 def analyze_diagnostic_swing(video_path, club_type):
     print("🦴 Booting up the X-Ray Diagnostic Lab...")
@@ -87,6 +93,7 @@ def analyze_diagnostic_swing(video_path, club_type):
     os.system(f"ffmpeg -y -i {tfile.name} -vcodec libx264 {final_video_path}")
 
     return final_video_path
+
 
 
 
