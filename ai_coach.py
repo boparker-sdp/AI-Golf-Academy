@@ -7,8 +7,8 @@ def vibe_coach(video_path, result_context, model_id="gemini-3-flash-preview"):
     """
     Analyzes a golf swing based on video and optional ball flight data.
     """
-    # Initialize using the secret key from your vault
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+    # Initialize using the Google API key stored in Streamlit secrets
+    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
     
     # 1. Upload Video
     video_file = client.files.upload(file=video_path)
@@ -50,10 +50,10 @@ def vibe_coach(video_path, result_context, model_id="gemini-3-flash-preview"):
 # =====================================================================
 def coach_chat(question, previous_report, model_id):
     """Answers follow-up questions based on the initial swing analysis."""
-    import os
     from google import genai
     
-    client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    # Initialize using the same Google API key from Streamlit secrets
+    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
     
     prompt = f"""
     You are an expert, encouraging golf coach. You just provided the following swing analysis to your student:
@@ -67,9 +67,15 @@ def coach_chat(question, previous_report, model_id):
     Answer their question clearly, simply, and conversationally. If they ask to define a term (like 'laid off' or 'early extension'), explain it using simple biomechanics or visuals they can easily feel.
     """
     
-    response = client.models.generate_content(
-        model=model_id,
-        contents=prompt
-    )
-    
-    return response.text  # <-- This belongs to coach_chat!
+    try:
+        # Wrap the API call to catch server hiccups
+        response = client.models.generate_content(
+            model=model_id,
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        # Instead of crashing, we return a helpful message to the user
+        print(f"Error calling Gemini: {e}") # This shows up in your terminal/logs
+        return "I'm sorry, I hit a momentary snag while thinking about your swing. Could you please try asking that again?"
+
