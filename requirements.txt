@@ -1,5 +1,6 @@
 streamlit
 google-genai
 opencv-python-headless
+mediapipe
 moviepy
 Pillow
